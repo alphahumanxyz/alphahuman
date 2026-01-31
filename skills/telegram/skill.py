@@ -78,8 +78,11 @@ async def _on_load(ctx: Any) -> None:
         raw = await ctx.read_data("config.json")
         if raw:
             config = json.loads(raw)
-    except Exception:
-        pass
+            log.info("Loaded config.json: keys=%s, has_session=%s", list(config.keys()), bool(config.get("session_string")))
+        else:
+            log.info("config.json is empty or not found")
+    except Exception as exc:
+        log.warning("Failed to read config.json: %s", exc)
 
     # Build params dict that on_skill_load expects
     params: dict[str, Any] = {

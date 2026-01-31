@@ -59,6 +59,17 @@ async def on_skill_load(
     session_string = params.get("sessionString", "")
     data_dir = params.get("dataDir", "data")
 
+    log.info(
+        "on_skill_load: api_id=%s, api_hash=%s..., session=%s, data_dir=%s, "
+        "env_api_id=%s, env_api_hash=%s...",
+        api_id,
+        api_hash[:8] if api_hash else "<empty>",
+        f"{session_string[:20]}..." if session_string else "<empty>",
+        data_dir,
+        os.environ.get("TELEGRAM_API_ID", "<not set>"),
+        (os.environ.get("TELEGRAM_API_HASH", "") or "<not set>")[:8],
+    )
+
     # Store entity callbacks for use in event handlers and tick
     _store_entity_callbacks(upsert_entity_fn, upsert_relationship_fn)
 
@@ -83,6 +94,7 @@ async def on_skill_load(
         if is_authed:
             store.set_auth_status("authenticated")
             store.set_is_initialized(True)
+            log.info("Telegram session is valid — authenticated")
 
             # Fetch current user
             me = await client.get_client().get_me()
@@ -101,6 +113,16 @@ async def on_skill_load(
                     log.exception("Failed to emit initial entities")
         else:
             store.set_auth_status("not_authenticated")
+            log.warning(
+                "Telegram session invalid or expired — disconnecting stale client. "
+                "User will need to re-authenticate via setup."
+            )
+            # Disconnect to stop Telethon's background update loop from
+            # spamming AuthKeyUnregisteredError on the stale session.
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
     except Exception:
         log.exception("Failed to connect/authenticate")
         store.set_connection_status("error")

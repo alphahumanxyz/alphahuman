@@ -41,8 +41,12 @@ from telethon.tl.functions.messages import (
 )
 from telethon.tl.functions.channels import (
     ReadHistoryRequest as ChannelReadHistoryRequest,
-    GetForumTopicsRequest,
 )
+
+try:
+    from telethon.tl.functions.channels import GetForumTopicsRequest
+except ImportError:
+    GetForumTopicsRequest = None  # Not available in telethon < 1.43
 
 from ..client.telethon_client import get_client
 from ..client.builders import build_message
@@ -654,6 +658,10 @@ async def list_topics(chat_id: str) -> ApiResult[list[Any]]:
 
         if not isinstance(entity, InputChannel):
             log.debug("Chat %s is not a channel/supergroup", chat_id)
+            return ApiResult(data=[], from_cache=False)
+
+        if GetForumTopicsRequest is None:
+            log.debug("GetForumTopicsRequest not available in this telethon version")
             return ApiResult(data=[], from_cache=False)
 
         result = await mtproto.with_flood_wait_handling(

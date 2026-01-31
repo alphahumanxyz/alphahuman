@@ -220,8 +220,6 @@ profile_media_tools: list[Tool] = [
     Tool(name="get_media_info", description="Get media information from a message", inputSchema={"type": "object", "properties": {"chat_id": {"type": "string", "description": "The ID or username of the chat"}, "message_id": {"type": "number", "description": "The message ID"}}, "required": ["chat_id", "message_id"]}),
     Tool(name="get_bot_info", description="Get information about a bot in a chat", inputSchema={"type": "object", "properties": {"chat_id": {"type": "string", "description": "The chat ID or bot username"}}, "required": ["chat_id"]}),
     Tool(name="set_bot_commands", description="Set bot commands for a scope", inputSchema={"type": "object", "properties": {"commands": {"type": "array", "items": {"type": "object", "properties": {"command": {"type": "string"}, "description": {"type": "string"}}}, "description": "Array of command objects"}, "chat_id": {"type": "string", "description": "Optional chat to scope the commands to"}}, "required": ["commands"]}),
-    Tool(name="get_sticker_sets", description="Get installed sticker sets", inputSchema={"type": "object", "properties": {"limit": {"type": "number", "description": "Maximum sticker sets", "default": 20}}}),
-    Tool(name="get_gif_search", description="Search for GIFs", inputSchema={"type": "object", "properties": {"query": {"type": "string", "description": "Search query for GIFs"}, "limit": {"type": "number", "description": "Maximum results", "default": 20}}, "required": ["query"]}),
 ]
 
 # ---------------------------------------------------------------------------

@@ -51,10 +51,6 @@ from telethon.tl.functions.photos import (
     UpdateProfilePhotoRequest,
 )
 from telethon.tl.functions.bots import SetBotCommandsRequest
-from telethon.tl.functions.messages import (
-    GetAllStickersRequest,
-    SearchGifsRequest,
-)
 
 from ..client.telethon_client import get_client
 from ..client.builders import build_user
@@ -418,49 +414,3 @@ async def set_bot_commands(
         return ApiResult(data=False, from_cache=False)
 
 
-async def get_sticker_sets(limit: int = 20) -> ApiResult[list[Any]]:
-    """Get sticker sets."""
-    await enforce_rate_limit("api_read")
-
-    try:
-        mtproto = get_client()
-        result = await mtproto.invoke(GetAllStickersRequest(hash=0))
-
-        if isinstance(result, messages.AllStickers):
-            sets = [
-                {
-                    "id": str(s.id),
-                    "title": s.title,
-                    "short_name": s.short_name,
-                    "count": s.count,
-                }
-                for s in result.sets[:limit]
-            ]
-            return ApiResult(data=sets, from_cache=False)
-
-        return ApiResult(data=[], from_cache=False)
-    except Exception:
-        log.exception("Error getting sticker sets")
-        return ApiResult(data=[], from_cache=False)
-
-
-async def get_gif_search(query: str, limit: int = 20) -> ApiResult[list[Any]]:
-    """Search for GIFs."""
-    await enforce_rate_limit("api_read")
-
-    try:
-        mtproto = get_client()
-        result = await mtproto.invoke(SearchGifsRequest(q=query, offset=0))
-
-        gifs = [
-            {
-                "id": getattr(gif, "id", None),
-                "type": getattr(gif, "type", None),
-            }
-            for gif in result.results[:limit]
-        ]
-
-        return ApiResult(data=gifs, from_cache=False)
-    except Exception:
-        log.exception("Error searching GIFs")
-        return ApiResult(data=[], from_cache=False)

@@ -150,27 +150,3 @@ async def set_bot_commands(args: dict[str, Any]) -> ToolResult:
         return log_and_format_error("set_bot_commands", e, ErrorCategory.PROFILE)
 
 
-async def get_sticker_sets(args: dict[str, Any]) -> ToolResult:
-    try:
-        limit = opt_number(args, "limit", 20)
-        result = await settings_api.get_sticker_sets(limit)
-        if not result.data:
-            return ToolResult(content="No sticker sets found.")
-        return ToolResult(content="\n".join(json.dumps(s) for s in result.data))
-    except Exception as e:
-        return log_and_format_error("get_sticker_sets", e, ErrorCategory.MEDIA)
-
-
-async def get_gif_search(args: dict[str, Any]) -> ToolResult:
-    try:
-        query = args.get("query", "")
-        if not isinstance(query, str) or not query:
-            return ToolResult(content="Search query is required", is_error=True)
-        limit = opt_number(args, "limit", 20)
-
-        result = await settings_api.get_gif_search(query, limit)
-        if not result.data:
-            return ToolResult(content=f'No GIFs found for "{query}".')
-        return ToolResult(content="\n".join(json.dumps(g) for g in result.data))
-    except Exception as e:
-        return log_and_format_error("get_gif_search", e, ErrorCategory.MEDIA)

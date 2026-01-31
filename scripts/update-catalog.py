@@ -100,7 +100,7 @@ def check_catalog() -> int:
     entries = sorted(
         e.name
         for e in skills_dir.iterdir()
-        if e.is_dir() and not e.name.startswith(".")
+        if e.is_dir() and not e.name.startswith(".") and e.name != "__pycache__"
     )
 
     fresh_skills: list[dict] = []
@@ -120,6 +120,9 @@ def check_catalog() -> int:
             or ""
         )
 
+        # Convert tick_interval_minutes if present
+        tick_interval_minutes = (skill_data or {}).get("tick_interval_minutes")
+        
         fresh_skills.append({
             "name": name,
             "description": description,
@@ -131,7 +134,7 @@ def check_catalog() -> int:
             ),
             "tools": (skill_data or {}).get("tools", []),
             "hooks": (skill_data or {}).get("hooks", []),
-            "tickInterval": (skill_data or {}).get("tick_interval"),
+            "tickIntervalMinutes": tick_interval_minutes,
             "path": f"skills/{dir_name}",
         })
 
@@ -195,7 +198,7 @@ def show_verbose(catalog_path: Path) -> None:
         version = s.get("version") or "?"
         tools = s.get("tools", [])
         hooks = s.get("hooks", [])
-        tick = s.get("tickInterval")
+        tick = s.get("tickIntervalMinutes")
         desc = s.get("description", "")
 
         print(f"  {bold(name)} {dim(f'v{version}')}")
@@ -207,8 +210,8 @@ def show_verbose(catalog_path: Path) -> None:
                 print(f"           {dim(f'... and {len(tools) - 5} more')}")
         if hooks:
             print(f"    Hooks: {dim(', '.join(hooks))}")
-        if tick:
-            print(f"    Tick:  {dim(f'{tick}ms')}")
+        if tick is not None:
+            print(f"    Tick:  {dim(f'{tick} minutes')}")
         print()
 
 

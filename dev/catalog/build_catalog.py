@@ -87,10 +87,12 @@ def extract_skill_py_fallback(skill_py_path: Path) -> dict[str, Any] | None:
     if version_match:
         result["version"] = version_match.group(1)
     
-    # Extract tick_interval
+    # Extract tick_interval and convert to minutes
     tick_match = re.search(r'tick_interval\s*=\s*(\d+)', content)
     if tick_match:
-        result["tick_interval"] = int(tick_match.group(1))
+        tick_ms = int(tick_match.group(1))
+        # Convert milliseconds to minutes (round to 1 decimal place)
+        result["tick_interval_minutes"] = round(tick_ms / 60_000, 1)
     
     # Try to extract tools using AST (more reliable than regex)
     try:
@@ -152,6 +154,14 @@ def extract_skill_py_fallback(skill_py_path: Path) -> dict[str, Any] | None:
                                                 # Check if it's not None
                                                 if not (isinstance(kw.value, ast.Constant) and kw.value.value is None):
                                                     hooks.append(hook_name)
+                            
+                            # Look for tick_interval= argument
+                            for keyword in node.value.keywords:
+                                if keyword.arg == "tick_interval":
+                                    if isinstance(keyword.value, ast.Constant):
+                                        tick_ms = keyword.value.value
+                                        if isinstance(tick_ms, int):
+                                            result["tick_interval_minutes"] = round(tick_ms / 60_000, 1)
                             
                             if tools:
                                 result["tools"] = tools
@@ -254,13 +264,18 @@ def extract_skill_py(skill_py_path: Path) -> dict[str, Any] | None:
             if getattr(skill.hooks, field_name, None) is not None:
                 hooks.append(field_name)
 
+    # Convert tick_interval from milliseconds to minutes
+    tick_interval_minutes = None
+    if skill.tick_interval is not None:
+        tick_interval_minutes = round(skill.tick_interval / 60_000, 1)
+    
     return {
         "name": skill.name,
         "description": skill.description,
         "version": skill.version,
         "tools": tools,
         "hooks": hooks,
-        "tick_interval": skill.tick_interval,
+        "tick_interval_minutes": tick_interval_minutes,
     }
 
 
@@ -300,7 +315,7 @@ def main() -> None:
     entries = sorted(
         e.name
         for e in skills_dir.iterdir()
-        if e.is_dir() and not e.name.startswith(".")
+        if e.is_dir() and not e.name.startswith(".") and e.name != "__pycache__"
     )
 
     if not entries:
@@ -360,7 +375,7 @@ def main() -> None:
             ),
             "tools": (skill_data or {}).get("tools", []),
             "hooks": (skill_data or {}).get("hooks", []),
-            "tickInterval": (skill_data or {}).get("tick_interval"),
+            "tickIntervalMinutes": (skill_data or {}).get("tick_interval_minutes"),
             "path": rel_path,
         }
 

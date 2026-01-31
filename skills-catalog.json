@@ -1,12 +1,79 @@
 {
-  "generatedAt": "2026-01-31T18:51:06.939002+00:00",
+  "generatedAt": "2026-01-31T22:25:09.026766+00:00",
   "version": "1.0.0",
   "skills": [
+    {
+      "name": "email",
+      "description": "",
+      "icon": null,
+      "executionStyle": "python",
+      "version": null,
+      "tools": [],
+      "hooks": [],
+      "tickInterval": null,
+      "path": "skills/email"
+    },
+    {
+      "name": "github",
+      "description": "",
+      "icon": null,
+      "executionStyle": "python",
+      "version": null,
+      "tools": [],
+      "hooks": [],
+      "tickInterval": null,
+      "path": "skills/github"
+    },
+    {
+      "name": "notion",
+      "description": "",
+      "icon": null,
+      "executionStyle": "python",
+      "version": null,
+      "tools": [],
+      "hooks": [],
+      "tickInterval": null,
+      "path": "skills/notion"
+    },
+    {
+      "name": "otter",
+      "description": "",
+      "icon": null,
+      "executionStyle": "python",
+      "version": null,
+      "tools": [],
+      "hooks": [],
+      "tickInterval": null,
+      "path": "skills/otter"
+    },
+    {
+      "name": "skill-generator",
+      "description": "Meta-skill that creates, validates, tests, and scans new AlphaHuman skills on-the-fly.",
+      "icon": null,
+      "executionStyle": "python",
+      "version": "1.0.0",
+      "tools": [
+        "list_available_skills",
+        "generate_skill",
+        "write_skill_file",
+        "validate_skill",
+        "test_skill",
+        "security_scan_skill"
+      ],
+      "hooks": [
+        "on_load",
+        "on_unload",
+        "on_session_start",
+        "on_before_message"
+      ],
+      "tickInterval": null,
+      "path": "skills/skill-generator"
+    },
     {
       "name": "telegram",
       "description": "",
       "icon": null,
-      "executionStyle": "integration",
+      "executionStyle": "python",
       "version": null,
       "tools": [],
       "hooks": [],

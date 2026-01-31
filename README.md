@@ -10,6 +10,8 @@ A plugin system for the [AlphaHuman](https://github.com/bnbpad/alphahuman) platf
 
 - **Cost efficient by keeping logic in Python code.** Tool handlers, data transformations, API calls, and business logic are all written in Python, they execute as native code, not as LLM-generated text. The AI only sees tool definitions (name, description, JSON Schema parameters) and tool results (compact strings). This keeps prompts small and avoids spending tokens on logic that code handles better.
 
+- **Relationship mapping across every integration.** Skills don't just expose tools — they build a structured knowledge graph of entities (contacts, chats, wallets, summaries) and the relationships between them. A Telegram skill emits contacts, groups, channels, and DMs as typed entities, then draws edges like `dm_with`, `summarizes`, and `summarizes_dm` to connect them. The host merges entities from every skill into a single graph the AI can query, traverse, and reason over. This means the AI understands *who* is connected to *what* across platforms, not just within one service. Skills declare their entity and relationship schemas upfront (`EntitySchema`), so the host knows what to expect and can validate the graph as it grows.
+
 **Learn more:** [Architecture](docs/architecture.md) | [API Reference](docs/api-reference.md) | [Lifecycle](docs/lifecycle.md) | [Testing](docs/testing.md) | [Python Skills](docs/python-skills.md) | [Publishing](docs/publishing.md) | [Getting Started](docs/getting-started.md)
 
 ## How Skills Work
@@ -210,6 +212,137 @@ ctx.emit_event(name) # Emit events for intelligence rules
 
 See [API Reference](docs/api-reference.md) for the full type definitions.
 
+## Relationship Mapping
+
+Skills build a cross-platform knowledge graph by emitting **entities** and **relationships** to the host. The host merges entities from all active skills into a single graph the AI can query, so it understands how contacts, chats, wallets, and summaries relate to each other — across integrations, not just within one.
+
+### How It Works
+
+```
+Telegram Skill                        Host Entity Graph
+─────────────                         ─────────────────
+telegram.contact ──┐
+telegram.group   ──┤── upsert_entity ──►  Unified graph
+telegram.dm      ──┤                      the AI queries
+telegram.summary ──┘                      via ctx.entities
+                     upsert_relationship ──►  Edges between
+                     (dm_with, summarizes)     any two entities
+```
+
+Skills emit entities during `on_load` (initial sync) and `on_tick` (periodic refresh). Each entity has a namespaced type, a source identifier, and arbitrary metadata. Relationships are directed edges with a type and optional metadata.
+
+### Declaring a Schema
+
+Skills declare what entity and relationship types they produce via `entity_schema` on the `SkillDefinition`. This lets the host validate the graph and gives other skills and the AI a clear picture of what's available.
+
+```python
+from dev.types.skill_types import (
+    SkillDefinition, EntitySchema,
+    EntityTypeDeclaration, EntityPropertySchema,
+    RelationshipTypeDeclaration,
+)
+
+skill = SkillDefinition(
+    name="my-skill",
+    description="...",
+    entity_schema=EntitySchema(
+        entity_types=[
+            EntityTypeDeclaration(
+                type="myskill.account",
+                label="Account",
+                description="A user account from MyService",
+                properties=[
+                    EntityPropertySchema(name="username", type="string", description="Account handle"),
+                    EntityPropertySchema(name="is_verified", type="boolean", description="Verified status"),
+                ],
+            ),
+            EntityTypeDeclaration(
+                type="myskill.workspace",
+                label="Workspace",
+                description="A shared workspace",
+            ),
+        ],
+        relationship_types=[
+            RelationshipTypeDeclaration(
+                type="member_of",
+                source_type="myskill.account",
+                target_type="myskill.workspace",
+                description="Account is a member of workspace",
+                cardinality="many_to_many",
+            ),
+        ],
+    ),
+    # ... hooks, tools, etc.
+)
+```
+
+### Emitting Entities and Relationships
+
+Runtime skills emit entities and relationships via reverse RPC callbacks provided during `on_load`:
+
+```python
+# Emit an entity
+await upsert_entity_fn(
+    type="telegram.contact",
+    source="telegram",
+    source_id="12345",
+    title="Alice",
+    metadata={"username": "alice", "is_premium": True},
+)
+
+# Emit a relationship
+await upsert_relationship_fn(
+    source_id="telegram:dm_12345",
+    target_id="telegram:12345",
+    type="dm_with",
+    source="telegram",
+)
+```
+
+The `upsert` semantics mean skills can safely re-emit entities on every tick — the host deduplicates by `(source, source_id)` and updates metadata in place.
+
+### Querying the Graph
+
+Any skill can query the merged entity graph through `ctx.entities`:
+
+```python
+# Free-text search across all entity types
+results = await ctx.entities.search("alice")
+
+# Filter by tag and type
+wallets = await ctx.entities.get_by_tag("whale", type="wallet")
+
+# Get a specific entity
+entity = await ctx.entities.get_by_id("telegram:12345")
+
+# Traverse relationships
+relationships = await ctx.entities.get_relationships(
+    entity_id="telegram:12345",
+    type="dm_with",         # optional filter
+    direction="outgoing",   # "outgoing" or "incoming"
+)
+```
+
+### Real-World Example: Telegram
+
+The Telegram skill emits five entity types and three relationship types:
+
+| Entity Type         | Examples                             |
+| ------------------- | ------------------------------------ |
+| `telegram.contact`  | Users, bots, the current user (self) |
+| `telegram.dm`       | Private 1-on-1 conversations         |
+| `telegram.group`    | Groups and supergroups               |
+| `telegram.channel`  | Broadcast channels                   |
+| `telegram.summary`  | Activity, unread, mention summaries  |
+
+| Relationship       | Source → Target                                    | Meaning                            |
+| ------------------ | -------------------------------------------------- | ---------------------------------- |
+| `dm_with`          | `telegram.dm` → `telegram.dm`                     | A direct message conversation      |
+| `summarizes`       | `telegram.summary` → `telegram.group/channel`     | Summary covers this group/channel  |
+| `summarizes_dm`    | `telegram.summary` → `telegram.dm`                | Summary covers this DM             |
+
+On load, the skill emits all known chats and contacts. On each tick (every 20 minutes), it refreshes entity metadata (unread counts, participant counts) and emits new summary entities with `summarizes` edges pointing to the chats they reference. This gives the AI a live, traversable view of the user's entire Telegram world.
+
 ## Dev Tooling
 
 All tools live in `dev/`. Install once: `pip install -e dev/`
@@ -256,8 +389,7 @@ skills/                          # Repo root
 │   ├── security/                # Secret/pattern scanner
 │   └── catalog/                 # Skills catalog builder
 ├── examples/                    # Example skills
-│   ├── prompt-only/             # Prompt-only example
-│   └── tool-skill/              # Python tool example
+│   └── kitchen-sink/            # Comprehensive example (all capabilities)
 ├── prompts/                     # AI prompt templates for non-coders
 │   └── categories/              # Domain-specific generators
 ├── docs/                        # Developer documentation

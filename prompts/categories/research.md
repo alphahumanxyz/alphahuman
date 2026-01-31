@@ -1,6 +1,6 @@
 # Research Skill Generator
 
-You are creating a crypto research skill for the AlphaHuman platform. Generate a complete `SKILL.md` following the format below.
+You are creating a crypto research skill for the AlphaHuman platform. Generate a complete `skill.py` following the format in `generate-skill.md`.
 
 ## Research Domain Context
 
@@ -18,43 +18,26 @@ Common research topics skills can cover:
 
 ## Key Terminology
 
-- **FDV** — Fully Diluted Valuation
-- **MC** — Market Capitalization
-- **TGE** — Token Generation Event
-- **TVL** — Total Value Locked
-- **DAU/MAU** — Daily/Monthly Active Users
-- **Tx** — Transaction count
-- **GHO/crvUSD** — Protocol-native stablecoins
-- **ve-tokenomics** — Vote-escrowed token models
+- **FDV** -- Fully Diluted Valuation
+- **MC** -- Market Capitalization
+- **TGE** -- Token Generation Event
+- **TVL** -- Total Value Locked
+- **DAU/MAU** -- Daily/Monthly Active Users
+- **Tx** -- Transaction count
+- **ve-tokenomics** -- Vote-escrowed token models
 
-## Output Format Patterns
+## Tool Output Patterns
 
-Research skills typically output structured reports:
+Research tools typically return structured reports:
 ```
-## [Project] Research Summary
-
-### Key Metrics
-| Metric | Value |
-|--------|-------|
-| Market Cap | $XXM |
-| FDV | $XXM |
-| TVL | $XXM |
-
-### Fundamentals
-[Team, funding, technology assessment]
-
-### Risk Assessment
-[Red flags, concerns, positive signals]
-
-### Verdict
-[Summary opinion with confidence level]
+[Project] Research Summary\n\nKey Metrics:\n- Market Cap: $XXM\n- FDV: $XXM\n- TVL: $XXM\n\nFundamentals: [Assessment]\nRisk Assessment: [Red flags, positive signals]\nVerdict: [Summary with confidence level]
 ```
 
 ## Required Disclaimers
 
 - "Research is based on publicly available data and may be incomplete."
-- "This is not investment advice. Always verify claims independently."
+- "Not investment advice. Always verify claims independently."
 
 ## Your Task
 
-Ask the user what research topic their skill should cover, then generate a complete SKILL.md following the standard format.
+Ask the user what research topic their skill should cover, then generate a complete `skill.py` with appropriate tools and hooks.

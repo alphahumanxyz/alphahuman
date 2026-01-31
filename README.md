@@ -10,6 +10,8 @@ A plugin system for the [AlphaHuman](https://github.com/bnbpad/alphahuman) platf
 
 - **Cost efficient by keeping logic in Python code.** Tool handlers, data transformations, API calls, and business logic are all written in Python, they execute as native code, not as LLM-generated text. The AI only sees tool definitions (name, description, JSON Schema parameters) and tool results (compact strings). This keeps prompts small and avoids spending tokens on logic that code handles better.
 
+**Learn more:** [Architecture](docs/architecture.md) | [API Reference](docs/api-reference.md) | [Lifecycle](docs/lifecycle.md) | [Testing](docs/testing.md) | [Python Skills](docs/python-skills.md) | [Publishing](docs/publishing.md) | [Getting Started](docs/getting-started.md)
+
 ## How Skills Work
 
 A skill is a Python directory under `skills/` containing:
@@ -235,25 +237,6 @@ Loads a skill into a mock context, runs all lifecycle hooks in order, exercises 
 ### Security Scanner
 
 Regex-based scanner that flags hardcoded secrets, `eval()`, direct filesystem access, network requests, and other patterns that don't belong in skills.
-
-## Examples
-
-| Example                                | Pattern      | Description                                                |
-| -------------------------------------- | ------------ | ---------------------------------------------------------- |
-| [`prompt-only`](examples/prompt-only/) | Prompt only  | Gas optimizer using SKILL.md instructions (legacy format)  |
-| [`tool-skill`](examples/tool-skill/)   | Python skill | Gas estimator with `gas_estimate` tool and lifecycle hooks |
-
-## Documentation
-
-| Doc                                        | Description                                             |
-| ------------------------------------------ | ------------------------------------------------------- |
-| [Getting Started](docs/getting-started.md) | Prerequisites, first skill, test, submit                |
-| [Architecture](docs/architecture.md)       | How the skill system loads, isolates, and runs skills   |
-| [API Reference](docs/api-reference.md)     | Complete SkillDefinition, SkillContext, SkillTool types |
-| [Lifecycle](docs/lifecycle.md)             | Hook timing, execution order, timeout rules             |
-| [Testing](docs/testing.md)                 | Validator, harness, mock context, security scanner      |
-| [Python Skills](docs/python-skills.md)     | Subprocess runtime and JSON-RPC protocol                |
-| [Publishing](docs/publishing.md)           | PR workflow, naming conventions, common rejections      |
 
 ## Repository Structure
 

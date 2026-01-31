@@ -5,82 +5,80 @@ How to use the developer tools to validate and test skills.
 ## Quick Reference
 
 ```bash
-cd dev
-
 # Validate all skills
-npm run validate
+python -m dev.validate.validator
 
 # Test a specific skill
-npx tsx harness/runner.ts ../skills/price-tracker --verbose
+python -m dev.harness.runner skills/my-skill --verbose
 
 # Security scan
-npm run scan
+python -m dev.security.scan_secrets
 
-# Security scan a specific skill
-npx tsx security/scan-secrets.ts ../skills/my-skill
+# Test setup flow interactively
+python test-setup.py skills/my-skill
+
+# Interactive server REPL (browse and call tools live)
+python test-server.py
 ```
 
-## Validation (`npm run validate`)
+## Validation (`python -m dev.validate.validator`)
 
-Checks every skill directory in `skills/` and `examples/typescript/`:
+Checks every skill directory in `skills/` and `examples/`:
 
-### SKILL.md Checks
-- File exists and is non-empty
-- YAML frontmatter present with `---` delimiters
-- `name` field present and matches directory name
-- `name` follows lowercase-hyphens convention
-- `description` field present and non-empty
-- Markdown body is non-empty
+### skill.py Checks
 
-### skill.ts Checks (if present)
-- File can be imported without errors
-- Has a default export
+- File exists
+- Has a `skill` export
+- `skill` is a `SkillDefinition` instance
 - `name`, `description`, `version` present
 - `name` matches directory name
+- `name` follows lowercase-hyphens convention
 - `version` follows semver pattern
-- Hooks are functions
+- Hooks are callable (async functions)
 - Tools have valid `definition` + `execute`
-- `tickInterval` >= 1000ms if set
+- `tick_interval` >= 1000ms if set
+- If `has_setup=True`, `on_setup_start` and `on_setup_submit` are defined
+- If `has_setup=False` but setup hooks exist, emits a warning
 
 ### Example Output
 
 ```
 AlphaHuman Skills Validator
 
-  Found 4 skill(s) to validate.
+  Found 2 skill(s) to validate.
 
-  skills/price-tracker
-    ✓ All checks passed
+  skills/telegram
+    OK  All checks passed
 
-  skills/portfolio-analysis
-    ✓ All checks passed
-
-  examples/typescript/simple-tool
-    ✓ All checks passed
+  examples/tool-skill
+    OK  All checks passed
 
 Summary
-  Skills:   4
-  ✓ Passed:   4
-  ✗ Errors:   0
-  ! Warnings: 0
+  Skills:    2
+  OK Passed: 2
+  X  Errors: 0
+  !  Warnings: 0
 ```
 
-## Test Harness (`npx tsx harness/runner.ts`)
+## Test Harness (`python -m dev.harness.runner`)
 
 Loads a skill and exercises all its hooks and tools against a mock context.
 
 ### What It Tests
 
-1. **SKILL.md**: Exists, has frontmatter, has content
-2. **skill.ts structure**: Default export, name, description, version
-3. **Lifecycle hooks**: Runs each defined hook in order:
-   - onLoad → onSessionStart → onBeforeMessage → onAfterResponse → onTick → onMemoryFlush → onSessionEnd → onUnload
+1. **skill.py structure**: Has `skill` export with name, description, version
+2. **Lifecycle hooks**: Runs each defined hook in order:
+   - on_load -> on_session_start -> on_before_message -> on_after_response -> on_tick -> on_memory_flush -> on_session_end -> on_unload
+3. **Setup flow** (if `has_setup=True`):
+   - Calls `on_setup_start`, validates returns a `SetupStep` with fields
+   - Generates dummy values from field schemas, calls `on_setup_submit`
+   - Calls `on_setup_cancel`, verifies no exception
 4. **Tools**: Auto-generates arguments from JSON Schema and calls `execute()`
 
 ### Verbose Mode
 
 ```bash
-npx tsx harness/runner.ts ../skills/price-tracker --verbose
+python -m dev.harness.runner skills/my-skill --verbose
 ```
 
 Shows additional details:
@@ -91,95 +89,84 @@ Shows additional details:
 ### Example Output
 
 ```
-Testing skill: price-tracker
-  Directory: /path/to/skills/price-tracker
+Testing skill: my-skill
+  Directory: /path/to/skills/my-skill
 
-SKILL.md
-  ✓ SKILL.md exists
-  ✓ Has YAML frontmatter
-  ✓ Content length: 1842 chars
-
-skill.ts
-  ✓ skill.ts exists
-  ✓ Has default export
-  ✓ name: "price-tracker"
-  ✓ description: "Track crypto token prices with alerts"
-  ✓ version: 1.0.0
-  ✓ tickInterval: 60000ms
+skill.py
+  OK  Has skill export
+  OK  name: "my-skill"
+  OK  description: "What this skill does"
+  OK  version: 1.0.0
 
 Lifecycle Hooks
-  ✓ onLoad: OK
-  ✓ onSessionStart: OK
-  onBeforeMessage: not defined
-  onAfterResponse: not defined
-  ✓ onTick: OK
-  onMemoryFlush: not defined
-  onSessionEnd: not defined
-  onUnload: not defined
+  OK  on_load: OK
+  OK  on_session_start: OK
+  --  on_before_message: not defined
+  --  on_after_response: not defined
+  OK  on_tick: OK
+  --  on_memory_flush: not defined
+  --  on_session_end: not defined
+  --  on_unload: not defined
+
+Setup Flow
+  OK  on_setup_start: returned step with 2 fields
+  OK  on_setup_submit: returned result with status=error
+  OK  on_setup_cancel: OK
 
 Tools (1)
-  ✓ set_price_alert: returned "Price alert set: test-value above $42"
+  OK  my_tool: returned "Result: test-value"
 
 Summary
-  ✓ 10 passed   ✗ 0 failed   ! 0 warnings
+  OK 8 passed   X 0 failed   ! 0 warnings
 ```
 
-## Mock Context
+## Interactive Setup Tester (`python test-setup.py`)
 
-The test harness uses `createMockContext()` from `dev/harness/mock-context.ts`. You can also use it directly in custom test scripts:
+Tests a skill's interactive setup flow with real terminal input.
 
-```typescript
-import { createMockContext } from "./dev/harness/mock-context.js";
-
-const { ctx, inspect } = createMockContext({
-  initialData: {
-    "alerts.json": JSON.stringify([{ token: "ETH", price: 4000 }]),
-  },
-  initialMemory: {
-    "user-prefs": '{"currency":"EUR"}',
-  },
-  sessionId: "test-session",
-});
-
-// Run hooks
-await skill.hooks?.onLoad?.(ctx);
-
-// Inspect results
-console.log(inspect.getLogs());        // ["Price tracker loaded"]
-console.log(inspect.getData());        // { "alerts.json": "..." }
-console.log(inspect.getMemory());      // { "user-prefs": "..." }
-console.log(inspect.getState());       // {}
-console.log(inspect.getRegisteredTools());  // []
-console.log(inspect.getEmittedEvents());    // []
+```bash
+python test-setup.py skills/telegram
 ```
 
-### Mock Context Options
+Features:
+- Renders multi-step forms in the terminal
+- Supports all field types: text, password, number, boolean, select, multiselect
+- Shows field-level validation errors on retry
+- Persists config to the skill's `data/` directory on completion
+- Cancel with Ctrl+C at any point
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `initialData` | `Record<string, string>` | `{}` | Pre-populate data directory files |
-| `initialMemory` | `Record<string, string>` | `{}` | Pre-populate memory files |
-| `initialEntities` | `Entity[]` | `[]` | Pre-populate entity graph |
-| `initialState` | `Record<string, unknown>` | `{}` | Pre-populate state store |
-| `sessionId` | `string` | `"test-session-001"` | Session ID |
-| `dataDir` | `string` | `"/mock/data"` | Data directory path |
+## Interactive Server REPL (`python test-server.py`)
 
-## Security Scanner (`npm run scan`)
+Browse and call all tools in a running skill server.
+
+```bash
+python test-server.py
+```
+
+Features:
+- Loads saved session or runs setup flow automatically
+- Groups tools by category (Chat, Message, Contact, Admin, etc.)
+- Search tools by name or description
+- Interactive argument collection from JSON Schema
+- Pretty-printed JSON results
+- Real-time skill logs on stderr
+
+## Security Scanner (`python -m dev.security.scan_secrets`)
 
 Scans skill source files for security issues.
 
 ### Error Patterns (block PRs)
+
 - Hardcoded API keys and Bearer tokens
-- `eval()` or `Function()` usage
+- `eval()` or `exec()` usage
 - AWS access key patterns
 - Hardcoded secret assignments
 
 ### Warning Patterns (advisory)
-- Direct `fs` module imports
-- `fetch()` or `XMLHttpRequest` usage
-- `process.env` access
-- `require()` calls
-- `localStorage`/`sessionStorage` usage
+
+- Direct `os` or `subprocess` module imports
+- `requests` or `urllib` usage (should use ctx methods)
+- `os.environ` access
 - Possible hex API keys
 - Long base64 strings
 
@@ -188,17 +175,15 @@ Scans skill source files for security issues.
 ```
 AlphaHuman Skills Security Scanner
 
-  Scanning 4 file(s)...
+  Scanning 2 file(s)...
 
-  ✓ skills/price-tracker/skill.ts: clean
-  ✓ skills/portfolio-analysis/skill.ts: clean
-  ✓ skills/on-chain-lookup/skill.ts: clean
-  ✓ skills/trading-signals/skill.ts: clean
+  OK  skills/telegram/skill.py: clean
+  OK  skills/telegram/setup.py: clean
 
 Summary
-  Files scanned: 4
-  ✗ Errors:   0
-  ! Warnings: 0
+  Files scanned: 2
+  X  Errors:   0
+  !  Warnings: 0
 ```
 
 ## CI Integration
@@ -206,7 +191,6 @@ Summary
 All these tools run automatically on pull requests via GitHub Actions. See `.github/workflows/validate-skills.yml`.
 
 The CI pipeline runs:
-1. `npm run validate` — Structure validation
-2. `npx tsc --noEmit` — Type checking
-3. `npm run scan` — Security scanning
-4. Test harness on every skill with a `skill.ts`
+1. `python -m dev.validate.validator` -- Structure validation
+2. `python -m dev.security.scan_secrets` -- Security scanning
+3. `python -m dev.harness.runner` on every skill -- Hook and tool testing

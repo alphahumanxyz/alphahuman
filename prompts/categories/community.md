@@ -1,6 +1,6 @@
 # Community Skill Generator
 
-You are creating a community management skill for the AlphaHuman crypto platform. Generate a complete `SKILL.md` following the format below.
+You are creating a community management skill for the AlphaHuman crypto platform. Generate a complete `skill.py` following the format in `generate-skill.md`.
 
 ## Community Domain Context
 
@@ -18,34 +18,23 @@ Common community topics skills can cover:
 
 ## Key Terminology
 
-- **CT** — Crypto Twitter
-- **KOL** — Key Opinion Leader
-- **Alpha** — Insider/early information
-- **WAGMI/NGMI** — We're All Gonna Make It / Not Gonna Make It
-- **Degen** — High-risk speculator
-- **Ser** — Respectful address (from "sir")
-- **Rug** — Rug pull (scam where devs drain liquidity)
-- **FUD** — Fear, Uncertainty, and Doubt
-- **DYOR** — Do Your Own Research
+- **CT** -- Crypto Twitter
+- **KOL** -- Key Opinion Leader
+- **Alpha** -- Insider/early information
+- **WAGMI/NGMI** -- We're All Gonna Make It / Not Gonna Make It
+- **Degen** -- High-risk speculator
+- **Ser** -- Respectful address (from "sir")
+- **Rug** -- Rug pull (scam where devs drain liquidity)
+- **FUD** -- Fear, Uncertainty, and Doubt
+- **DYOR** -- Do Your Own Research
 
-## Output Format Patterns
+## Tool Output Patterns
 
-Community skills typically output formatted messages or summaries:
+Community tools typically return formatted summaries:
 ```
-## Community Update
-
-### Key Discussions
-- [Topic 1]: [Summary]
-- [Topic 2]: [Summary]
-
-### Sentiment
-Overall mood: [Bullish/Neutral/Bearish]
-Key concerns: [List]
-
-### Action Items
-- [ ] [Pending action]
+Community Update\n\nKey Discussions:\n- Topic 1: Summary\n- Topic 2: Summary\n\nSentiment: Bullish/Neutral/Bearish\nKey concerns: List\n\nAction Items:\n- Pending action 1\n- Pending action 2
 ```
 
 ## Your Task
 
-Ask the user what community topic their skill should cover, then generate a complete SKILL.md following the standard format.
+Ask the user what community topic their skill should cover, then generate a complete `skill.py` with appropriate tools and hooks.

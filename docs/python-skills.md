@@ -1,40 +1,31 @@
 # Python Skills
 
-> **Status: EXPERIMENTAL** — The subprocess runtime is not yet implemented. This document describes the planned protocol.
+How the Python skill runtime works.
 
 ## Overview
 
-Python skills run as subprocess workers, communicating with the AlphaHuman runtime over stdin/stdout using JSON-RPC 2.0. This enables skills to be written in Python (or any language that can read/write JSON over stdio).
+Skills are Python modules that communicate with the AlphaHuman host over stdin/stdout using JSON-RPC 2.0. The `SkillServer` class in `dev/runtime/server.py` handles all protocol details automatically.
 
 ## Skill Structure
 
 ```
-my-python-skill/
-├── SKILL.md          # Required: same format as TypeScript skills
-├── manifest.json     # Required: runtime configuration
-├── skill.py          # Required: JSON-RPC server implementation
-└── requirements.txt  # Optional: Python dependencies
+my-skill/
+├── skill.py          # Required: SkillDefinition export
+├── setup.py          # Optional: interactive setup flow
+├── manifest.json     # Optional: runtime metadata
+├── requirements.txt  # Optional: Python dependencies
+├── handlers/         # Optional: tool handler functions
+├── client/           # Optional: API client wrappers
+├── state/            # Optional: in-process state management
+├── db/               # Optional: SQLite persistence
+└── data/             # Auto-created persistent storage
 ```
-
-## Manifest Format
-
-```json
-{
-  "runtime": {
-    "type": "subprocess",
-    "command": "python3",
-    "args": ["skill.py"]
-  }
-}
-```
-
-The runtime spawns `python3 skill.py` as a child process and communicates via stdin/stdout.
 
 ## JSON-RPC Protocol
 
-All messages are single-line JSON objects following JSON-RPC 2.0.
+All messages are single-line JSON objects following JSON-RPC 2.0 over stdin/stdout.
 
-### Request (Runtime → Skill)
+### Request (Host -> Skill)
 
 ```json
 {
@@ -45,7 +36,7 @@ All messages are single-line JSON objects following JSON-RPC 2.0.
 }
 ```
 
-### Response (Skill → Runtime)
+### Response (Skill -> Host)
 
 ```json
 {
@@ -70,35 +61,26 @@ All messages are single-line JSON objects following JSON-RPC 2.0.
 
 ## Methods
 
-### `initialize`
+### `tools/list`
 
-Sent once after spawning. Return skill metadata and tool definitions.
-
-**Request**: `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`
+Return all tool definitions.
 
 **Response**:
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "name": "my-skill",
-    "description": "What this skill does",
-    "version": "1.0.0",
-    "tools": [
-      {
-        "name": "my_tool",
-        "description": "Tool description",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "input": { "type": "string" }
-          },
-          "required": ["input"]
-        }
+  "tools": [
+    {
+      "name": "my_tool",
+      "description": "Tool description",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "input": {"type": "string"}
+        },
+        "required": ["input"]
       }
-    ]
-  }
+    }
+  ]
 }
 ```
 
@@ -109,12 +91,10 @@ Execute a tool.
 **Request**:
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 2,
   "method": "tools/call",
   "params": {
     "name": "my_tool",
-    "arguments": { "input": "hello" }
+    "arguments": {"input": "hello"}
   }
 }
 ```
@@ -122,87 +102,153 @@ Execute a tool.
 **Response**:
 ```json
 {
-  "jsonrpc": "2.0",
-  "id": 2,
   "result": {
-    "content": "Tool result text"
+    "content": [{"type": "text", "text": "Tool result text"}],
+    "isError": false
   }
 }
 ```
 
 ### Lifecycle Methods
 
-| Method | Description |
-|--------|-------------|
-| `lifecycle/onLoad` | Skill loaded |
-| `lifecycle/onSessionStart` | Session started (params: `{sessionId}`) |
-| `lifecycle/onSessionEnd` | Session ended (params: `{sessionId}`) |
-| `lifecycle/onTick` | Periodic tick |
+| Method                 | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `skill/load`           | Initialize skill (receives manifest, dataDir) |
+| `skill/unload`         | Clean shutdown                           |
+| `skill/sessionStart`   | Session started (params: `{sessionId}`)  |
+| `skill/sessionEnd`     | Session ended (params: `{sessionId}`)    |
+| `skill/beforeMessage`  | Transform user message                   |
+| `skill/afterResponse`  | Transform AI response                    |
+| `skill/tick`           | Periodic tick                            |
+| `skill/shutdown`       | Process exit                             |
 
-All lifecycle methods should return `{"ok": true}`.
+### Setup Methods
 
-### `shutdown`
+| Method           | Description                            |
+| ---------------- | -------------------------------------- |
+| `setup/start`    | Begin setup, returns first SetupStep   |
+| `setup/submit`   | Submit step values, returns SetupResult |
+| `setup/cancel`   | Cancel setup, clean up                 |
 
-Clean shutdown. The skill should exit after responding.
+### Reverse RPC (Skill -> Host)
 
-## Implementation Template
+Skills can call back to the host for state and data:
+
+| Method                   | Purpose                       |
+| ------------------------ | ----------------------------- |
+| `state/get`              | Read skill state              |
+| `state/set`              | Update skill state            |
+| `data/read`              | Read from data directory      |
+| `data/write`             | Write to data directory       |
+| `intelligence/emitEvent` | Emit event for rules          |
+| `entities/upsert`        | Create/update an entity       |
+| `entities/search`        | Search entity graph           |
+
+## Using SkillServer
+
+The recommended way to build a skill is using the `SkillServer` class, which handles all JSON-RPC protocol details:
 
 ```python
-#!/usr/bin/env python3
-import json
+from dev.runtime.server import SkillServer
+from dev.types.skill_types import SkillDefinition, SkillHooks, SkillTool, ToolDefinition, ToolResult
+
+async def on_load(ctx):
+    ctx.log("Loaded")
+
+async def my_tool(args):
+    return ToolResult(content=f"Result: {args.get('input', '')}")
+
+skill = SkillDefinition(
+    name="my-skill",
+    description="Example skill",
+    version="1.0.0",
+    hooks=SkillHooks(on_load=on_load),
+    tools=[
+        SkillTool(
+            definition=ToolDefinition(
+                name="my_tool",
+                description="Example tool",
+                parameters={
+                    "type": "object",
+                    "properties": {"input": {"type": "string"}},
+                    "required": ["input"],
+                },
+            ),
+            execute=my_tool,
+        ),
+    ],
+)
+
+if __name__ == "__main__":
+    server = SkillServer(skill)
+    server.start()
+```
+
+## Logging
+
+Use `ctx.log()` or write directly to stderr. Stdout is reserved for JSON-RPC.
+
+```python
 import sys
 
-def handle_request(request):
-    method = request.get("method", "")
-    params = request.get("params", {})
-    req_id = request.get("id")
+# Via context
+ctx.log("Debug message")
 
-    if method == "initialize":
-        return {
-            "jsonrpc": "2.0", "id": req_id,
-            "result": {
-                "name": "my-skill",
-                "description": "Description",
-                "version": "1.0.0",
-                "tools": []
-            }
-        }
-    elif method == "tools/call":
-        # Handle tool calls
-        return {"jsonrpc": "2.0", "id": req_id, "result": {"content": "ok"}}
-    elif method.startswith("lifecycle/"):
-        return {"jsonrpc": "2.0", "id": req_id, "result": {"ok": True}}
-    elif method == "shutdown":
-        return {"jsonrpc": "2.0", "id": req_id, "result": {"ok": True}}
-    else:
-        return {
-            "jsonrpc": "2.0", "id": req_id,
-            "error": {"code": -32601, "message": f"Unknown: {method}"}
-        }
-
-for line in sys.stdin:
-    line = line.strip()
-    if not line:
-        continue
-    request = json.loads(line)
-    response = handle_request(request)
-    print(json.dumps(response), flush=True)
-    if request.get("method") == "shutdown":
-        break
+# Direct stderr (outside hooks)
+sys.stderr.write("[skill] message\n")
+sys.stderr.flush()
 ```
 
 ## Testing
 
-Test manually by running the skill and pasting JSON-RPC requests:
+### Manual JSON-RPC testing
 
 ```bash
 python3 skill.py
-# Paste:
-{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
+# Paste JSON-RPC requests:
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"my_tool","arguments":{"input":"test"}}}
-{"jsonrpc":"2.0","id":3,"method":"shutdown","params":{}}
+{"jsonrpc":"2.0","id":3,"method":"skill/shutdown","params":{}}
 ```
 
-## Example
+### Using the test harness
 
-See `examples/python/tool-skill/` for a complete working example (gas cost estimator).
+```bash
+python -m dev.harness.runner skills/my-skill --verbose
+```
+
+### Interactive setup flow
+
+```bash
+python test-setup.py skills/my-skill
+```
+
+### Interactive server REPL
+
+```bash
+python test-server.py
+```
+
+## Manifest Format
+
+Optional `manifest.json` for runtime metadata:
+
+```json
+{
+  "id": "my-skill",
+  "name": "My Skill",
+  "description": "What this skill does",
+  "version": "1.0.0",
+  "runtime": {
+    "type": "subprocess",
+    "command": "python3",
+    "args": ["skill.py"]
+  },
+  "dependencies": [],
+  "env": ["MY_API_KEY"],
+  "setup": {
+    "required": true,
+    "label": "Connect My Service"
+  }
+}
+```

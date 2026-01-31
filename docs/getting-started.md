@@ -1,12 +1,12 @@
 # Getting Started
 
-Build your first AlphaHuman skill in under 5 minutes.
+Build your first AlphaHuman skill.
 
 ## Prerequisites
 
-- Node.js 22+ installed
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/) or pip
 - Git
-- A text editor
 
 ## 1. Clone the Repository
 
@@ -18,18 +18,18 @@ cd alphahuman-skills
 ## 2. Install Dev Tools
 
 ```bash
-cd dev
-npm install
-```
+pip install -e dev/
 
-This installs 3 packages: `typescript`, `tsx`, and `yaml`.
+# or with uv:
+uv venv .venv && source .venv/bin/activate && uv pip install -e dev/
+```
 
 ## 3. Create a Skill
 
 ### Option A: Interactive Scaffolder
 
 ```bash
-npx tsx scaffold/new-skill.ts
+python -m dev.scaffold.new_skill my-skill
 ```
 
 Follow the prompts to name your skill and choose features.
@@ -37,102 +37,112 @@ Follow the prompts to name your skill and choose features.
 ### Option B: Manual Copy
 
 ```bash
-cp -r TEMPLATE/ skills/my-skill/
+cp -r examples/tool-skill/ skills/my-skill/
 ```
 
-Edit `skills/my-skill/SKILL.md` with your instructions.
+## 4. Write skill.py
 
-## 4. Write Your SKILL.md
+This is the core of your skill. Every skill needs a `skill.py` that exports a `skill` variable:
 
-This is the core of your skill. Fill in:
+```python
+from dev.types.skill_types import (
+    SkillDefinition, SkillHooks, SkillTool, ToolDefinition, ToolResult,
+)
 
-```markdown
----
-name: my-skill
-description: What this skill does in one sentence.
----
+async def on_load(ctx):
+    ctx.log("Skill loaded")
 
-# My Skill
+async def my_tool_execute(args):
+    input_val = args.get("input", "")
+    return ToolResult(content=f"Result: {input_val}")
 
-## Overview
-What it does.
-
-## When to Use
-When the user asks about X, Y, or Z.
-
-## Instructions
-1. Step one.
-2. Step two.
-
-## Output Format
-How to format responses.
-
-## Examples
-Show example conversations.
-
-## Limitations
-What it can't do.
+skill = SkillDefinition(
+    name="my-skill",
+    description="What this skill does",
+    version="1.0.0",
+    hooks=SkillHooks(
+        on_load=on_load,
+    ),
+    tools=[
+        SkillTool(
+            definition=ToolDefinition(
+                name="my_tool",
+                description="What the tool does",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "input": {"type": "string", "description": "Input value"},
+                    },
+                    "required": ["input"],
+                },
+            ),
+            execute=my_tool_execute,
+        ),
+    ],
+)
 ```
 
-See `examples/typescript/prompt-only/SKILL.md` for a complete example.
+## 5. (Optional) Add setup.py
 
-## 5. (Optional) Add Code
+If your skill needs interactive configuration (API keys, auth flows), add a `setup.py`:
 
-If your skill needs custom tools, periodic tasks, or message transforms, add a `skill.ts`:
+```python
+from dev.types.setup_types import SetupStep, SetupField, SetupResult, SetupFieldError
 
-```typescript
-import type { SkillDefinition, SkillContext } from "@alphahuman/skill-types";
+async def on_setup_start(ctx):
+    return SetupStep(
+        id="credentials",
+        title="API Credentials",
+        fields=[
+            SetupField(name="api_key", type="password", label="API Key", required=True),
+        ],
+    )
 
-const skill: SkillDefinition = {
-  name: "my-skill",
-  description: "What this skill does",
-  version: "1.0.0",
+async def on_setup_submit(ctx, step_id, values):
+    if not values.get("api_key"):
+        return SetupResult(
+            status="error",
+            errors=[SetupFieldError(field="api_key", message="Required")],
+        )
+    await ctx.write_data("config.json", json.dumps({"api_key": values["api_key"]}))
+    return SetupResult(status="complete", message="Connected!")
 
-  tools: [
-    {
-      definition: {
-        name: "my_tool",
-        description: "What the tool does",
-        parameters: {
-          type: "object",
-          properties: {
-            input: { type: "string", description: "Input value" },
-          },
-          required: ["input"],
-        },
-      },
-      async execute(args) {
-        const { input } = args as { input: string };
-        return { content: `Result: ${input}` };
-      },
-    },
-  ],
-};
-
-export default skill;
+async def on_setup_cancel(ctx):
+    pass
 ```
 
-See `examples/typescript/simple-tool/` for a complete example.
+Set `has_setup=True` in your `SkillDefinition`.
 
 ## 6. Test Your Skill
 
 ### Validate structure
 
 ```bash
-cd dev
-npm run validate
+python -m dev.validate.validator
 ```
 
-### Run the test harness (coded skills only)
+### Run the test harness
 
 ```bash
-npx tsx harness/runner.ts ../skills/my-skill --verbose
+python -m dev.harness.runner skills/my-skill --verbose
+```
+
+### Test setup flow interactively
+
+```bash
+python test-setup.py skills/my-skill
 ```
 
 ### Security scan
 
 ```bash
-npm run scan
+python -m dev.security.scan_secrets
+```
+
+### Interactive server REPL (for skills with tools)
+
+```bash
+python test-server.py
 ```
 
 ## 7. Submit a Pull Request
@@ -148,8 +158,8 @@ Open a pull request. CI will automatically validate your skill.
 
 ## Next Steps
 
-- [Architecture](./architecture.md) — How the skill system works
-- [API Reference](./api-reference.md) — SkillContext, hooks, tools
-- [Lifecycle](./lifecycle.md) — Hook timing and execution order
-- [Testing](./testing.md) — Test harness deep dive
-- [Publishing](./publishing.md) — PR workflow and requirements
+- [Architecture](./architecture.md) -- How the skill system works
+- [API Reference](./api-reference.md) -- SkillContext, hooks, tools
+- [Lifecycle](./lifecycle.md) -- Hook timing and execution order
+- [Testing](./testing.md) -- Test harness deep dive
+- [Publishing](./publishing.md) -- PR workflow and requirements

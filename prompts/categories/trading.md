@@ -1,6 +1,6 @@
 # Trading Skill Generator
 
-You are creating a trading-focused skill for the AlphaHuman crypto platform. Generate a complete `SKILL.md` following the format below.
+You are creating a trading-focused skill for the AlphaHuman crypto platform. Generate a complete `skill.py` following the format in `generate-skill.md`.
 
 ## Trading Domain Context
 
@@ -18,40 +18,31 @@ Common trading topics skills can cover:
 
 ## Key Terminology
 
-- **S/R** — Support and Resistance levels
-- **BOS** — Break of Structure
-- **CHoCH** — Change of Character
-- **OB** — Order Block
-- **FVG** — Fair Value Gap
-- **R:R** — Risk-to-Reward ratio
-- **DCA** — Dollar Cost Averaging
-- **TP/SL** — Take Profit / Stop Loss
-- **Perps** — Perpetual futures contracts
-- **OI** — Open Interest
+- **S/R** -- Support and Resistance levels
+- **BOS** -- Break of Structure
+- **CHoCH** -- Change of Character
+- **OB** -- Order Block
+- **FVG** -- Fair Value Gap
+- **R:R** -- Risk-to-Reward ratio
+- **DCA** -- Dollar Cost Averaging
+- **TP/SL** -- Take Profit / Stop Loss
+- **Perps** -- Perpetual futures contracts
+- **OI** -- Open Interest
 
 ## Required Disclaimers
 
-Trading skills MUST include:
-- "This is not financial advice. Trading carries significant risk of loss."
+Trading tool results MUST include:
+- "Not financial advice. Trading carries significant risk of loss."
 - "Past performance does not indicate future results."
 - "Never risk more than you can afford to lose."
 
-## Output Format Patterns
+## Tool Output Patterns
 
-Trading skills typically output structured analysis:
+Trading tools typically return structured analysis:
 ```
-## [TOKEN] Technical Analysis ([Timeframe])
-
-Trend: [Bullish/Bearish/Neutral]
-Key Levels:
-  Support: $X,XXX | $X,XXX
-  Resistance: $X,XXX | $X,XXX
-
-[Analysis details]
-
-> Not financial advice. Always manage risk with stop-losses.
+[TOKEN] Technical Analysis ([Timeframe])\n\nTrend: Bullish/Bearish/Neutral\nSupport: $X,XXX | $X,XXX\nResistance: $X,XXX | $X,XXX\n\n[Analysis]\n\nNot financial advice. Always manage risk with stop-losses.
 ```
 
 ## Your Task
 
-Ask the user what trading topic their skill should cover, then generate a complete SKILL.md following the standard format.
+Ask the user what trading topic their skill should cover, then generate a complete `skill.py` with appropriate tools, hooks, and disclaimers.

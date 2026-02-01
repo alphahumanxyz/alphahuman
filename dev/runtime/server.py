@@ -282,15 +282,15 @@ class SkillServer:
     if method == "skill/beforeMessage":
       msg = p.get("message", "")
       if self._hooks and self._hooks.on_before_message:
-        result: str | None = await self._hooks.on_before_message(self._create_context(), msg)
-        return {"message": result}
+        transformed_msg: str | None = await self._hooks.on_before_message(self._create_context(), msg)
+        return {"message": transformed_msg}
       return {"message": None}
 
     if method == "skill/afterResponse":
       response = p.get("response", "")
       if self._hooks and self._hooks.on_after_response:
-        result: str | None = await self._hooks.on_after_response(self._create_context(), response)
-        return {"response": result}
+        transformed_response: str | None = await self._hooks.on_after_response(self._create_context(), response)
+        return {"response": transformed_response}
       return {"response": None}
 
     if method == "skill/tick":

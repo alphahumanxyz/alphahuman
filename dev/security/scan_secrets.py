@@ -278,19 +278,19 @@ def main() -> None:
     rel_path = str(file_path.relative_to(root_dir))
     findings = scan_content(content, rel_path)
 
-    errors = [f for f in findings if f.severity == "error"]
-    warnings = [f for f in findings if f.severity == "warning"]
+    errors = [finding for finding in findings if finding.severity == "error"]
+    warnings = [finding for finding in findings if finding.severity == "warning"]
 
     if not findings:
       print(f"  {PASS} {rel_path}: clean")
     else:
       icon = FAIL if errors else WARN
       print(f"  {icon} {rel_path}:")
-      for f in findings:
-        f_icon = FAIL if f.severity == "error" else WARN
-        print(f"    {f_icon} L{f.line}:{f.column} [{f.pattern}] {f.description}")
+      for finding in findings:
+        f_icon = FAIL if finding.severity == "error" else WARN
+        print(f"    {f_icon} L{finding.line}:{finding.column} [{finding.pattern}] {finding.description}")
         if verbose:
-          print(f"      {f.snippet}")
+          print(f"      {finding.snippet}")
 
     total_errors += len(errors)
     total_warnings += len(warnings)

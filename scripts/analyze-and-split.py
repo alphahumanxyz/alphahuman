@@ -138,26 +138,24 @@ class FileAnalyzer:
       # Section header comments (with separators or long descriptive comments)
       if stripped.startswith("#") and ("---" in stripped or "==" in stripped or len(stripped) > 50):
         if current_section:
-          sections.append(
-            {
-              "name": current_section,
-              "start": section_start,
-              "end": i - 1,
-            }
-          )
+          section_dict: dict[str, Any] = {
+            "name": current_section,
+            "start": section_start,
+            "end": i - 1,
+          }
+          sections.append(section_dict)
         current_section = stripped.strip("#").strip()
         section_start = i
 
     # If we found explicit sections, use them
     if sections or current_section:
       if current_section:
-        sections.append(
-          {
-            "name": current_section,
-            "start": section_start,
-            "end": len(self.lines),
-          }
-        )
+        section_dict: dict[str, Any] = {
+          "name": current_section,
+          "start": section_start,
+          "end": len(self.lines),
+        }
+        sections.append(section_dict)
       return sections
 
     # Otherwise, group by classes or function prefixes
@@ -165,13 +163,12 @@ class FileAnalyzer:
       # Split by classes
       sections = []
       for cls in classes:
-        sections.append(
-          {
-            "name": f"Class: {cls['name']}",
-            "start": cls["line"],
-            "end": cls["end_line"],
-          }
-        )
+        section_dict: dict[str, Any] = {
+          "name": f"Class: {cls['name']}",
+          "start": cls["line"],
+          "end": cls["end_line"],
+        }
+        sections.append(section_dict)
       return sections
 
     # Group functions by prefix if we have many functions
@@ -212,13 +209,12 @@ class FileAnalyzer:
           current_end = func["end_line"]
         else:
           # Start new section
-          sections.append(
-            {
-              "name": f"{current_prefix}_functions",
-              "start": current_start,
-              "end": current_end,
-            }
-          )
+          section_dict: dict[str, Any] = {
+            "name": f"{current_prefix}_functions",
+            "start": current_start,
+            "end": current_end,
+          }
+          sections.append(section_dict)
           current_prefix = prefix
           current_start = func["line"]
           current_end = func["end_line"]
@@ -230,7 +226,7 @@ class FileAnalyzer:
             "name": f"{current_prefix}_functions",
             "start": current_start,
             "end": current_end,
-          }
+          }  # type: ignore[dict-item]
         )
 
       return sections
@@ -246,7 +242,7 @@ class FileAnalyzer:
 
   def suggest_split(self) -> dict[str, Any]:
     """Suggest how to split the file."""
-    suggestions = {
+    suggestions: dict[str, Any] = {
       "file": str(self.file_path.relative_to(ROOT)),
       "total_lines": self.total_lines,
       "code_lines": self.code_lines,
@@ -446,7 +442,7 @@ class FileSplitter:
         if not in_docstring:
           in_docstring = True
           docstring_char = stripped[0:3]
-        elif stripped.endswith(docstring_char):
+        elif docstring_char and stripped.endswith(docstring_char):
           in_docstring = False
         continue
 

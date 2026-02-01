@@ -35,7 +35,7 @@ def check_file(filepath: Path, verbose: bool = False) -> Tuple[bool, str]:
         return False, f"✗ {filepath.relative_to(Path.cwd())}: Unexpected error - {e}"
 
 
-def find_python_files(directory: Path, exclude_dirs: List[str] = None) -> List[Path]:
+def find_python_files(directory: Path, exclude_dirs: List[str] | None = None) -> List[Path]:
     """
     Find all Python files in a directory tree.
 

@@ -11,6 +11,7 @@ from typing import Any
 from dev.types.skill_types import SkillContext
 from dev.types.setup_types import (
   SetupField,
+  SetupFieldError,
   SetupFieldOption,
   SetupResult,
   SetupStep,
@@ -34,7 +35,7 @@ async def _handle_profile_step(ctx: SkillContext, values: dict[str, Any]) -> Set
   if not username:
     return SetupResult(
       status="error",
-      errors=[{"field": "username", "message": "Display name is required."}],
+      errors=[SetupFieldError(field="username", message="Display name is required.")],
     )
 
   # Save partial state

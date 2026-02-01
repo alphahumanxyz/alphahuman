@@ -11,9 +11,9 @@ from typing import Any
 
 try:
   from pynput import keyboard, mouse  # type: ignore[import-untyped]
-  from pynput.mouse import Button, Listener as MouseListener  # type: ignore[import-untyped]
-  from pynput.keyboard import Key, Listener as KeyboardListener  # type: ignore[import-untyped]
-  from PIL import ImageGrab  # type: ignore[import-not-found]
+  from pynput.mouse import Button, Listener as MouseListener
+  from pynput.keyboard import Key, Listener as KeyboardListener
+  from PIL import ImageGrab
   PYNPUT_AVAILABLE = True
 except ImportError:
   PYNPUT_AVAILABLE = False

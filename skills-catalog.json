@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-02-01T02:56:24.197321+00:00",
+  "generatedAt": "2026-02-01T03:07:40.933677+00:00",
   "version": "1.0.0",
   "skills": [
     {
@@ -317,14 +317,19 @@
       "path": "skills/otter"
     },
     {
-      "name": "skill-coder",
+      "name": "skill-generator",
       "description": "Meta-skill that creates, validates, tests, and scans new AlphaHuman skills on-the-fly.",
       "icon": null,
       "version": "1.0.0",
       "tools": [],
-      "hooks": [],
+      "hooks": [
+        "on_load",
+        "on_unload",
+        "on_session_start",
+        "on_before_message"
+      ],
       "tickIntervalMinutes": null,
-      "path": "skills/skill-coder"
+      "path": "skills/skillcoder"
     },
     {
       "name": "slack",

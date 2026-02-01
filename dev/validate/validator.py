@@ -174,7 +174,7 @@ def validate_skill_py(skill_py_path: Path, dir_name: str) -> SkillResult:
         result.errors.append(
           f'{prefix} ("{defn.name or "?"}"): parameters must be {{"type": "object", ...}}'
         )
-
+      # Continue validation even if params are invalid
       if not callable(tool.execute):
         result.errors.append(f'{prefix} ("{defn.name or "?"}"): missing `execute` callable')
 
@@ -182,8 +182,9 @@ def validate_skill_py(skill_py_path: Path, dir_name: str) -> SkillResult:
   if skill.tick_interval is not None:
     if not isinstance(skill.tick_interval, int):
       result.errors.append("`tick_interval` must be an integer")
-    elif skill.tick_interval < 1000:
-      result.errors.append(f"tick_interval {skill.tick_interval}ms is below minimum (1000ms)")
+    else:
+      if skill.tick_interval < 1000:
+        result.errors.append(f"tick_interval {skill.tick_interval}ms is below minimum (1000ms)")
 
   # --- Validate setup flow ---
   has_setup_start = skill.hooks and skill.hooks.on_setup_start is not None

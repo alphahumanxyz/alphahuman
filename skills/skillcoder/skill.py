@@ -18,8 +18,8 @@ except (ImportError, NameError, AttributeError):
   from dev.types.skill_types import SkillDefinition
 
   skill = SkillDefinition(
-    name="skill-coder",
-    description="Meta-skill that creates, validates, tests, and scans new AlphaHuman skills on-the-fly.",
+    name="skillcoder",
+    description="A skill that makes new skills on it's own.",
     version="1.0.0",
     tools=[],
   )

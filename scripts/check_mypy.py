@@ -15,7 +15,7 @@ from pathlib import Path
 from collections import defaultdict
 
 
-def run_mypy(exclude: list[str] = None) -> tuple[int, str]:
+def run_mypy(exclude: list[str] | None = None) -> tuple[int, str]:
     """Run mypy and return error count and output."""
     cmd = ["python", "-m", "mypy", "skills", "--config-file", "pyproject.toml"]
     if exclude:
@@ -69,7 +69,7 @@ def main():
     parser.add_argument(
         '--exclude',
         nargs='+',
-        default=['skill-coder'],
+        default=['skillcoder'],
         help='Directories to exclude'
     )
 

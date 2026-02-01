@@ -117,6 +117,38 @@ async def register_message_handlers(client: TelegramClient) -> None:
       except Exception:
         log.debug("Failed to emit entity updates on new message", exc_info=True)
 
+      # Evaluate triggers
+      try:
+        from ..server import get_fire_trigger_callback
+        from ..triggers import evaluate_message_triggers
+
+        fire_fn = get_fire_trigger_callback()
+        if fire_fn:
+          msg_data = {
+            "message": {
+              "text": telegram_msg.message or "",
+              "sender_name": telegram_msg.from_name or "",
+              "sender_id": telegram_msg.from_id or "",
+              "chat_name": existing_chat.title if existing_chat else "",
+              "chat_id": chat_id,
+              "is_outgoing": telegram_msg.is_outgoing,
+            }
+          }
+          for trigger, matched in evaluate_message_triggers(
+            msg_data, existing_chat.title if existing_chat else ""
+          ):
+            await fire_fn(
+              trigger.id,
+              matched,
+              {
+                "source": "telegram",
+                "event_type": "new_message",
+                "full_message": telegram_msg.message or "",
+              },
+            )
+      except Exception:
+        log.debug("Trigger evaluation failed", exc_info=True)
+
     except Exception:
       log.exception("Error in on_new_message handler")
 

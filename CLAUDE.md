@@ -42,6 +42,7 @@ Every hook receives a `SkillContext` with:
 | `get_state()` / `set_state(partial)`                    | Skill state store                                          |
 | `emit_event(name, data)`                                | Emit events for intelligence rules                         |
 | `get_options()`                                         | Returns current runtime option values as a dict            |
+| `skills`                                                | Discover and interact with other skills (SkillsManager)    |
 
 ### Tool Registration Pattern
 
@@ -57,6 +58,56 @@ JSON-RPC methods: `options/list`, `options/get`, `options/set`, `options/reset`.
 
 Skills with `has_disconnect=True` must implement an `on_disconnect` hook. This provides a standardized way for the frontend to trigger a clean disconnection (close connections, clear credentials). Called via `skill/disconnect` JSON-RPC method.
 
+### Triggers System
+
+Skills can declare trigger types via `trigger_schema` on `SkillDefinition`. The LLM creates trigger instances through auto-generated tools. Skills evaluate conditions in their event handlers and fire triggers via `ctx.fire_trigger()`, which notifies the host to start a new AI conversation.
+
+**Trigger Schema**: Declared on `SkillDefinition.trigger_schema` using `TriggerSchema` (contains `TriggerTypeDefinition` objects). Each type declares `condition_fields` (fields usable in conditions) and `config_schema` (type-specific configuration).
+
+**Trigger Hooks**:
+- `on_trigger_register(ctx, trigger)` — Called when a trigger is created or loaded from persistence
+- `on_trigger_remove(ctx, trigger_id)` — Called when a trigger is deleted
+
+**SkillContext methods**:
+- `fire_trigger(trigger_id, matched_data, context)` — Fire-and-forget; sends `triggers/fired` reverse RPC to host
+- `get_triggers()` — Returns all registered trigger instances
+
+**Conditions**: Recursive model supporting `regex`, `keyword`, `threshold`, and compound `and`/`or`/`not`. Evaluated by `dev.utils.conditions.evaluate_condition()`.
+
+**Auto-generated tools** (added to `tools/list` when `trigger_schema` is present): `list-trigger-types`, `list-triggers`, `create-trigger`, `update-trigger`, `delete-trigger`, `get-trigger`.
+
+**JSON-RPC methods**: `triggers/types`, `triggers/list`, `triggers/create`, `triggers/update`, `triggers/delete`, `triggers/get`. Reverse RPC: `triggers/fired`.
+
+**Persistence**: Triggers are persisted to `triggers.json` in the skill's data directory and reloaded on `skill/load`.
+
+### Inter-Skill Communication (Interop)
+
+Skills can discover each other, request data, and call functions across skill boundaries — all routed through the host IPC. Skills declare what they expose via `interop_schema` on `SkillDefinition`, with per-endpoint visibility controlling access.
+
+**Visibility Model**: Per-endpoint `visibility: list[Literal["skills", "frontend"]]`. `[]` = private, `["skills"]` = other skills can access, `["frontend"]` = frontend can access, `["skills", "frontend"]` = both.
+
+**Interop Schema**: Declared on `SkillDefinition.interop_schema` using `InteropSchema` containing `ExposedDataDefinition` and `ExposedFunctionDefinition` objects. Each has a `name`, `description`, `visibility`, and async `handler`.
+
+**SkillContext.skills** (SkillsManager protocol):
+- `list_skills()` — Discover all registered skills
+- `get_skill(skill_id)` — Get info about a specific skill
+- `list_data(skill_id?)` — List exposed data endpoints
+- `list_functions(skill_id?)` — List exposed functions
+- `request_data(skill_id, data_name, params?)` — Request data from another skill
+- `call_function(skill_id, function_name, arguments?)` — Call a function on another skill
+
+**Interop Hooks** (optional interceptors on incoming requests):
+- `on_interop_data(ctx, caller_skill_id, data_name, params) -> dict | None` — intercept data requests
+- `on_interop_call(ctx, caller_skill_id, function_name, arguments) -> dict | None` — intercept function calls
+
+**Auto-generated tools** (always present on every skill): `list-skills`, `list-skill-data`, `list-skill-functions`, `request-skill-data`, `call-skill-function`.
+
+**Forward RPC** (host → skill): `interop/getData`, `interop/callFunction`, `interop/listExposed`.
+
+**Reverse RPC** (skill → host): `skills/list`, `skills/get`, `skills/listData`, `skills/listFunctions`, `skills/requestData`, `skills/callFunction`.
+
+**Types**: `from dev.types.interop_types import ExposedDataDefinition, ExposedFunctionDefinition, InteropSchema, SkillInfo, ExposedDataInfo, ExposedFunctionInfo`.
+
 ## Repository Structure
 
 ```
@@ -67,8 +118,14 @@ skills/                          # Repo root
 │   ├── pyproject.toml           # Dependencies: pydantic>=2.0
 │   ├── types/
 │   │   ├── skill_types.py       # Pydantic v2 type definitions
-│   │   └── setup_types.py       # Setup flow types (SetupStep, SetupField, etc.)
-│   ├── runtime/server.py        # asyncio JSON-RPC 2.0 server
+│   │   ├── setup_types.py       # Setup flow types (SetupStep, SetupField, etc.)
+│   │   ├── trigger_types.py     # Trigger/automation types (TriggerCondition, TriggerInstance, etc.)
+│   │   └── interop_types.py     # Inter-skill communication types (InteropSchema, ExposedDataDefinition, etc.)
+│   ├── utils/
+│   │   └── conditions.py        # Trigger condition evaluator (regex, keyword, threshold, compound)
+│   ├── runtime/
+│   │   ├── server.py            # asyncio JSON-RPC 2.0 server
+│   │   └── interop.py           # Inter-skill communication runtime helpers
 │   ├── harness/                 # Mock context + test runner
 │   ├── validate/                # skill.py validator
 │   ├── scaffold/                # Interactive skill scaffolder
@@ -201,4 +258,6 @@ git push --no-verify
 - **No underscores in skill names** — skill names must be lowercase-hyphens (e.g., `my-skill`, not `my_skill`). Underscores are reserved for tool namespacing (`skillId__toolName`). If a skill name contains an underscore, replace it with a dash. The validator and scaffolder both enforce this.
 - Skills with `has_setup=True` must implement `on_setup_start` and `on_setup_submit` hooks
 - Skills with `has_disconnect=True` must implement an `on_disconnect` hook
+- Skills with `trigger_schema` should implement `on_trigger_register` and `on_trigger_remove` hooks. Types from `dev.types.trigger_types`.
+- Skills with `interop_schema` expose data/functions to other skills and the frontend. Types from `dev.types.interop_types`. Interop hooks (`on_interop_data`, `on_interop_call`) are optional interceptors for incoming requests.
 - **Split large files into smaller pieces** — avoid writing monolithic files. When a module exceeds ~300 lines, split it into logical sub-modules (e.g., separate files for types, handlers, constants, options). This applies to skill implementations, dev tooling, and any other code in this repo.

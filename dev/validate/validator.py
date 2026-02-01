@@ -52,6 +52,8 @@ VALID_HOOKS = {
   "on_disconnect",
   "on_trigger_register",
   "on_trigger_remove",
+  "on_interop_data",
+  "on_interop_call",
 }
 
 # ---------------------------------------------------------------------------
@@ -339,9 +341,7 @@ def validate_skill_py(skill_py_path: Path, dir_name: str) -> SkillResult:
       field_names: set[str] = set()
       for tf in tt.condition_fields:
         if tf.name in field_names:
-          result.errors.append(
-            f'Trigger type "{tt.type}": duplicate condition field "{tf.name}"'
-          )
+          result.errors.append(f'Trigger type "{tt.type}": duplicate condition field "{tf.name}"')
         field_names.add(tf.name)
 
     # Check for missing hooks
@@ -365,6 +365,60 @@ def validate_skill_py(skill_py_path: Path, dir_name: str) -> SkillResult:
   if has_any_trigger_hook and skill.trigger_schema is None:
     result.warnings.append(
       "Trigger hooks defined but trigger_schema is None — hooks will not be called"
+    )
+
+  # --- Validate interop schema ---
+  if skill.interop_schema is not None:
+    ios = skill.interop_schema
+
+    # Unique data endpoint names
+    data_names: set[str] = set()
+    for ed in ios.exposed_data:
+      if ed.name in data_names:
+        result.errors.append(f'Duplicate exposed data name "{ed.name}" in interop_schema')
+      data_names.add(ed.name)
+
+      if not ed.description:
+        result.errors.append(f'Exposed data "{ed.name}": description is required')
+      if not callable(ed.handler):  # type: ignore[unreachable]
+        result.errors.append(f'Exposed data "{ed.name}": handler must be callable')
+      # Validate visibility values
+      for v in ed.visibility:
+        if v not in ("skills", "frontend"):
+          result.errors.append(
+            f'Exposed data "{ed.name}": invalid visibility "{v}" (must be "skills" or "frontend")'
+          )
+
+    # Unique function names
+    func_names: set[str] = set()
+    for ef in ios.exposed_functions:
+      if ef.name in func_names:
+        result.errors.append(f'Duplicate exposed function name "{ef.name}" in interop_schema')
+      func_names.add(ef.name)
+
+      if not ef.description:
+        result.errors.append(f'Exposed function "{ef.name}": description is required')
+      if not callable(ef.handler):  # type: ignore[unreachable]
+        result.errors.append(f'Exposed function "{ef.name}": handler must be callable')
+      # Validate parameters schema
+      if ef.parameters and ef.parameters.get("type") != "object":
+        result.errors.append(
+          f'Exposed function "{ef.name}": parameters must be {{"type": "object", ...}}'
+        )
+      # Validate visibility values
+      for v in ef.visibility:
+        if v not in ("skills", "frontend"):
+          result.errors.append(
+            f'Exposed function "{ef.name}": invalid visibility "{v}" (must be "skills" or "frontend")'
+          )
+
+  # Check for interop hooks without schema
+  has_any_interop_hook = skill.hooks and (
+    skill.hooks.on_interop_data is not None or skill.hooks.on_interop_call is not None
+  )
+  if has_any_interop_hook and skill.interop_schema is None:
+    result.warnings.append(
+      "Interop hooks defined but interop_schema is None — hooks will not be called"
     )
 
   return result

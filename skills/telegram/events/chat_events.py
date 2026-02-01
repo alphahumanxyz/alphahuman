@@ -91,5 +91,32 @@ async def register_chat_handlers(client: TelegramClient) -> None:
       except Exception:
         log.debug("Failed to emit entity updates on chat action", exc_info=True)
 
+      # Evaluate triggers
+      try:
+        from ..server import get_fire_trigger_callback
+        from ..triggers import evaluate_chat_event_triggers
+
+        fire_fn = get_fire_trigger_callback()
+        if fire_fn:
+          event_data = {
+            "event": {
+              "action": action_type,
+              "chat_name": existing_chat.title if existing_chat else "",
+              "chat_id": chat_id,
+            }
+          }
+          for trigger, matched in evaluate_chat_event_triggers(event_data):
+            await fire_fn(
+              trigger.id,
+              matched,
+              {
+                "source": "telegram",
+                "event_type": "chat_action",
+                "action": action_type,
+              },
+            )
+      except Exception:
+        log.debug("Trigger evaluation failed for chat action", exc_info=True)
+
     except Exception:
       log.exception("Error in on_chat_action handler")

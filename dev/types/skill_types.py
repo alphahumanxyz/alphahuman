@@ -15,6 +15,14 @@ from typing import Any, Literal, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from dev.types.interop_types import (  # noqa: F401, TC001  — re-exported
+  ExposedDataDefinition,
+  ExposedDataInfo,
+  ExposedFunctionDefinition,
+  ExposedFunctionInfo,
+  InteropSchema,
+  SkillInfo,
+)
 from dev.types.setup_types import (  # noqa: F401  — re-exported
   SetupField,
   SetupFieldError,
@@ -22,7 +30,7 @@ from dev.types.setup_types import (  # noqa: F401  — re-exported
   SetupResult,
   SetupStep,
 )
-from dev.types.trigger_types import (  # noqa: F401  — re-exported
+from dev.types.trigger_types import (  # noqa: F401, TC001  — re-exported
   TriggerCondition,
   TriggerFieldSchema,
   TriggerFiredEvent,
@@ -220,6 +228,22 @@ class EntityManager(Protocol):
   ) -> list[Relationship]: ...
 
 
+@runtime_checkable
+class SkillsManager(Protocol):
+  """Discover and interact with other skills via the host IPC."""
+
+  async def list_skills(self) -> list[dict[str, Any]]: ...
+  async def get_skill(self, skill_id: str) -> dict[str, Any] | None: ...
+  async def list_data(self, skill_id: str | None = None) -> list[dict[str, Any]]: ...
+  async def list_functions(self, skill_id: str | None = None) -> list[dict[str, Any]]: ...
+  async def request_data(
+    self, skill_id: str, data_name: str, params: dict[str, Any] | None = None
+  ) -> dict[str, Any]: ...
+  async def call_function(
+    self, skill_id: str, function_name: str, arguments: dict[str, Any] | None = None
+  ) -> dict[str, Any]: ...
+
+
 # ---------------------------------------------------------------------------
 # Skill Context (Protocol — passed to every hook)
 # ---------------------------------------------------------------------------
@@ -233,6 +257,7 @@ class SkillContext(Protocol):
   session: SessionManager
   tools: ToolRegistry
   entities: EntityManager
+  skills: SkillsManager
   data_dir: str
 
   async def read_data(self, filename: str) -> str: ...
@@ -268,6 +293,13 @@ SetupCancelHandler = Callable[[SkillContext], Awaitable[None]]
 TriggerRegisterHook = Callable[[SkillContext, Any], Awaitable[None]]  # Any = TriggerInstance
 TriggerRemoveHook = Callable[[SkillContext, str], Awaitable[None]]  # str = trigger_id
 
+InteropDataHook = Callable[
+  [SkillContext, str, str, dict[str, Any]], Awaitable[dict[str, Any] | None]
+]  # (ctx, caller_skill_id, data_name, params) -> dict | None
+InteropCallHook = Callable[
+  [SkillContext, str, str, dict[str, Any]], Awaitable[dict[str, Any] | None]
+]  # (ctx, caller_skill_id, function_name, arguments) -> dict | None
+
 
 # ---------------------------------------------------------------------------
 # Skill Hooks
@@ -295,6 +327,8 @@ class SkillHooks(BaseModel):
   on_disconnect: DisconnectHook | None = None
   on_trigger_register: TriggerRegisterHook | None = None
   on_trigger_remove: TriggerRemoveHook | None = None
+  on_interop_data: InteropDataHook | None = None
+  on_interop_call: InteropCallHook | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -352,4 +386,8 @@ class SkillDefinition(BaseModel):
   trigger_schema: TriggerSchema | None = Field(
     default=None,
     description="Declares trigger types this skill supports for automation rules",
+  )
+  interop_schema: InteropSchema | None = Field(
+    default=None,
+    description="Declares data endpoints and functions this skill exposes to other skills and the frontend",
   )

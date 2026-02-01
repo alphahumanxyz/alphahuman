@@ -23,6 +23,7 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+  from dev.types.interop_types import ExposedDataDefinition, ExposedFunctionDefinition
   from dev.types.setup_types import SetupResult, SetupStep
   from dev.types.skill_types import SkillDefinition, SkillOptionDefinition, SkillTool
   from dev.types.trigger_types import TriggerInstance, TriggerSchema
@@ -49,6 +50,15 @@ class SkillServer:
     self._trigger_tools: dict[str, SkillTool] = {}
     if self._trigger_schema:
       self._trigger_tools = self._build_trigger_tools()
+    # Interop system
+    self._exposed_data: dict[str, ExposedDataDefinition] = {}
+    self._exposed_functions: dict[str, ExposedFunctionDefinition] = {}
+    if skill.interop_schema:
+      self._exposed_data = {d.name: d for d in skill.interop_schema.exposed_data}
+      self._exposed_functions = {f.name: f for f in skill.interop_schema.exposed_functions}
+    from dev.runtime.interop import build_interop_tools
+
+    self._interop_tools: dict[str, SkillTool] = build_interop_tools(self)
 
   # --------------------------------------------------------------------- #
   # Public API
@@ -225,7 +235,11 @@ class SkillServer:
 
     # -- Tool methods --
     if method == "tools/list":
-      all_visible = list(self._tools.values()) + list(self._trigger_tools.values())
+      all_visible = (
+        list(self._tools.values())
+        + list(self._trigger_tools.values())
+        + list(self._interop_tools.values())
+      )
       return {
         "tools": [
           {
@@ -244,7 +258,7 @@ class SkillServer:
     if method == "tools/call":
       name = p.get("name", "")
       args = p.get("arguments", {})
-      tool = self._tools.get(name) or self._trigger_tools.get(name)
+      tool = self._tools.get(name) or self._trigger_tools.get(name) or self._interop_tools.get(name)
       if not tool:
         raise ValueError(f"Unknown tool: {name}")
       result = await tool.execute(args)
@@ -440,6 +454,22 @@ class SkillServer:
     if method == "triggers/delete":
       return await self._delete_trigger(p)
 
+    # -- Interop methods (forward RPC from host) --
+    if method == "interop/getData":
+      from dev.runtime.interop import handle_get_data
+
+      return await handle_get_data(self, p)
+
+    if method == "interop/callFunction":
+      from dev.runtime.interop import handle_call_function
+
+      return await handle_call_function(self, p)
+
+    if method == "interop/listExposed":
+      from dev.runtime.interop import handle_list_exposed
+
+      return handle_list_exposed(self)
+
     raise ValueError(f"Unknown method: {method}")
 
   # --------------------------------------------------------------------- #
@@ -567,7 +597,10 @@ class SkillServer:
               "items": {"type": "object"},
             },
             "config": {"type": "object", "description": "Trigger-type-specific config"},
-            "enabled": {"type": "boolean", "description": "Whether trigger is enabled (default true)"},
+            "enabled": {
+              "type": "boolean",
+              "description": "Whether trigger is enabled (default true)",
+            },
             "metadata": {"type": "object", "description": "Optional metadata"},
           },
           "required": ["type", "name", "conditions"],
@@ -682,7 +715,7 @@ class SkillServer:
     import datetime
     import uuid
 
-    from dev.types.trigger_types import TriggerCondition, TriggerInstance
+    from dev.types.trigger_types import TriggerInstance
 
     trigger_type = params.get("type", "")
     name = params.get("name", "")
@@ -712,7 +745,7 @@ class SkillServer:
       conditions=conditions,
       config=params.get("config", {}),
       enabled=params.get("enabled", True),
-      created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+      created_at=datetime.datetime.now(datetime.UTC).isoformat(),
       metadata=params.get("metadata", {}),
     )
 
@@ -775,9 +808,7 @@ class SkillServer:
 
     return {"ok": True}
 
-  def _validate_conditions(
-    self, conditions_raw: list[Any], trigger_type: str
-  ) -> list[Any]:
+  def _validate_conditions(self, conditions_raw: list[Any], trigger_type: str) -> list[Any]:
     """Parse and validate condition dicts into TriggerCondition objects."""
     from dev.types.trigger_types import TriggerCondition
 
@@ -887,7 +918,9 @@ class SkillServer:
         continue
       trigger_type = item.get("type", "")
       if trigger_type not in valid_types:
-        self.log(f"Warning: persisted trigger type '{trigger_type}' no longer declared, loading anyway")
+        self.log(
+          f"Warning: persisted trigger type '{trigger_type}' no longer declared, loading anyway"
+        )
 
       conditions = [
         TriggerCondition.model_validate(c)
@@ -977,11 +1010,43 @@ class SkillServer:
       ) -> list:
         return await server.get_relationships(entity_id, type, direction)
 
+    class _Skills:
+      async def list_skills(self) -> list[dict[str, Any]]:
+        result = await server.list_skills()
+        skills: list[dict[str, Any]] = result.get("skills", [])
+        return skills
+
+      async def get_skill(self, skill_id: str) -> dict[str, Any] | None:
+        result = await server.get_skill_info(skill_id)
+        skill: dict[str, Any] | None = result.get("skill")
+        return skill
+
+      async def list_data(self, skill_id: str | None = None) -> list[dict[str, Any]]:
+        result = await server.list_exposed_data(skill_id)
+        data: list[dict[str, Any]] = result.get("data", [])
+        return data
+
+      async def list_functions(self, skill_id: str | None = None) -> list[dict[str, Any]]:
+        result = await server.list_exposed_functions(skill_id)
+        functions: list[dict[str, Any]] = result.get("functions", [])
+        return functions
+
+      async def request_data(
+        self, skill_id: str, data_name: str, params: dict[str, Any] | None = None
+      ) -> dict[str, Any]:
+        return await server.request_skill_data(skill_id, data_name, params)
+
+      async def call_function(
+        self, skill_id: str, function_name: str, arguments: dict[str, Any] | None = None
+      ) -> dict[str, Any]:
+        return await server.call_skill_function(skill_id, function_name, arguments)
+
     class _Context:
       memory = _Memory()
       session = _Session()
       tools = _Tools()
       entities = _Entities()
+      skills = _Skills()
 
       # Expose server-level callbacks for skills that need direct access
       _upsert_entity = staticmethod(server.upsert_entity)
@@ -1096,11 +1161,61 @@ class SkillServer:
         "triggerId": trigger.id,
         "triggerName": trigger.name,
         "triggerType": trigger.type,
-        "firedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "firedAt": datetime.datetime.now(datetime.UTC).isoformat(),
         "matchedData": matched_data,
         "context": context or {},
       },
     )
+
+  # --------------------------------------------------------------------- #
+  # Reverse RPC — interop (skill → host)
+  # --------------------------------------------------------------------- #
+
+  async def list_skills(self) -> dict[str, Any]:
+    result = await self._reverse_rpc("skills/list")
+    return result if isinstance(result, dict) else {"skills": []}
+
+  async def get_skill_info(self, skill_id: str) -> dict[str, Any]:
+    result = await self._reverse_rpc("skills/get", {"skillId": skill_id})
+    return result if isinstance(result, dict) else {"skill": None}
+
+  async def list_exposed_data(self, skill_id: str | None = None) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    if skill_id is not None:
+      params["skillId"] = skill_id
+    result = await self._reverse_rpc("skills/listData", params)
+    return result if isinstance(result, dict) else {"data": []}
+
+  async def list_exposed_functions(self, skill_id: str | None = None) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    if skill_id is not None:
+      params["skillId"] = skill_id
+    result = await self._reverse_rpc("skills/listFunctions", params)
+    return result if isinstance(result, dict) else {"functions": []}
+
+  async def request_skill_data(
+    self,
+    skill_id: str,
+    data_name: str,
+    params: dict[str, Any] | None = None,
+  ) -> dict[str, Any]:
+    rpc_params: dict[str, Any] = {"skillId": skill_id, "dataName": data_name}
+    if params is not None:
+      rpc_params["params"] = params
+    result = await self._reverse_rpc("skills/requestData", rpc_params)
+    return result if isinstance(result, dict) else {}
+
+  async def call_skill_function(
+    self,
+    skill_id: str,
+    function_name: str,
+    arguments: dict[str, Any] | None = None,
+  ) -> dict[str, Any]:
+    rpc_params: dict[str, Any] = {"skillId": skill_id, "functionName": function_name}
+    if arguments is not None:
+      rpc_params["arguments"] = arguments
+    result = await self._reverse_rpc("skills/callFunction", rpc_params)
+    return result if isinstance(result, dict) else {}
 
   async def _reverse_rpc(self, method: str, params: Any = None, timeout: float = 30.0) -> Any:
     msg_id = self._next_id

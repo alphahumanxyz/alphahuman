@@ -33,6 +33,9 @@ class MockContextOptions:
   initial_state: dict[str, Any] = field(default_factory=dict)
   session_id: str = "test-session-001"
   data_dir: str = "/mock/data"
+  available_skills: list[dict[str, Any]] = field(default_factory=list)
+  exposed_data_responses: dict[str, dict[str, Any]] = field(default_factory=dict)
+  exposed_function_responses: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +57,7 @@ class MockInspector:
     session_values: dict[str, Any],
     relationship_store: list[Relationship] | None = None,
     fired_triggers: list[dict[str, Any]] | None = None,
+    interop_calls: list[dict[str, Any]] | None = None,
   ) -> None:
     self._logs = logs
     self._data_store = data_store
@@ -64,6 +68,7 @@ class MockInspector:
     self._session_values = session_values
     self._relationship_store = relationship_store if relationship_store is not None else []
     self._fired_triggers = fired_triggers if fired_triggers is not None else []
+    self._interop_calls = interop_calls if interop_calls is not None else []
 
   def get_logs(self) -> list[str]:
     return list(self._logs)
@@ -92,6 +97,9 @@ class MockInspector:
   def get_fired_triggers(self) -> list[dict[str, Any]]:
     return list(self._fired_triggers)
 
+  def get_interop_calls(self) -> list[dict[str, Any]]:
+    return list(self._interop_calls)
+
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -115,6 +123,7 @@ def create_mock_context(
   emitted_events: list[dict[str, Any]] = []
   session_values: dict[str, Any] = {}
   fired_triggers: list[dict[str, Any]] = []
+  interop_calls: list[dict[str, Any]] = []
   # Wrap in list so nested class can mutate via reference
   state: list[dict[str, Any]] = [dict(opts.initial_state)]
 
@@ -196,12 +205,62 @@ def create_mock_context(
           results.append(r)
       return results
 
+  # --- Skills Manager ---
+  class _Skills:
+    async def list_skills(self) -> list[dict[str, Any]]:
+      interop_calls.append({"method": "list_skills"})
+      return list(opts.available_skills)
+
+    async def get_skill(self, skill_id: str) -> dict[str, Any] | None:
+      interop_calls.append({"method": "get_skill", "skill_id": skill_id})
+      for s in opts.available_skills:
+        if s.get("id") == skill_id:
+          return s
+      return None
+
+    async def list_data(self, skill_id: str | None = None) -> list[dict[str, Any]]:
+      interop_calls.append({"method": "list_data", "skill_id": skill_id})
+      return []
+
+    async def list_functions(self, skill_id: str | None = None) -> list[dict[str, Any]]:
+      interop_calls.append({"method": "list_functions", "skill_id": skill_id})
+      return []
+
+    async def request_data(
+      self, skill_id: str, data_name: str, params: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+      interop_calls.append(
+        {
+          "method": "request_data",
+          "skill_id": skill_id,
+          "data_name": data_name,
+          "params": params,
+        }
+      )
+      key = f"{skill_id}:{data_name}"
+      return opts.exposed_data_responses.get(key, {})
+
+    async def call_function(
+      self, skill_id: str, function_name: str, arguments: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+      interop_calls.append(
+        {
+          "method": "call_function",
+          "skill_id": skill_id,
+          "function_name": function_name,
+          "arguments": arguments,
+        }
+      )
+      key = f"{skill_id}:{function_name}"
+      return opts.exposed_function_responses.get(key, {})
+
   # --- Context ---
   class _Context:
     memory = _Memory()
     session = _Session()
     tools = _Tools()
     entities = _Entities()
+    skills = _Skills()
     data_dir = opts.data_dir
 
     async def read_data(self, filename: str) -> str:
@@ -234,11 +293,13 @@ def create_mock_context(
       matched_data: dict[str, Any],
       context: dict[str, Any] | None = None,
     ) -> None:
-      fired_triggers.append({
-        "trigger_id": trigger_id,
-        "matched_data": matched_data,
-        "context": context,
-      })
+      fired_triggers.append(
+        {
+          "trigger_id": trigger_id,
+          "matched_data": matched_data,
+          "context": context,
+        }
+      )
 
     def get_triggers(self) -> list[Any]:
       return []
@@ -255,6 +316,7 @@ def create_mock_context(
     session_values=session_values,
     relationship_store=relationship_store,
     fired_triggers=fired_triggers,
+    interop_calls=interop_calls,
   )
 
   return ctx, inspector

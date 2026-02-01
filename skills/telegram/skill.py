@@ -23,6 +23,11 @@ from dev.types.skill_types import (
 from dev.types.skill_types import (
   ToolResult as SkillToolResult,
 )
+from dev.types.trigger_types import (
+  TriggerFieldSchema,
+  TriggerSchema,
+  TriggerTypeDefinition,
+)
 
 from .handlers import dispatch_tool
 from .setup import on_setup_cancel, on_setup_start, on_setup_submit
@@ -107,6 +112,7 @@ async def _on_load(ctx: Any) -> None:
   upsert_entity_fn = getattr(ctx, "_upsert_entity", None)
   upsert_relationship_fn = getattr(ctx, "_upsert_relationship", None)
   request_summarization_fn = getattr(ctx, "_request_summarization", None)
+  fire_trigger_fn = getattr(ctx, "_fire_trigger", None)
 
   await on_skill_load(
     params,
@@ -114,6 +120,7 @@ async def _on_load(ctx: Any) -> None:
     upsert_entity_fn=upsert_entity_fn,
     upsert_relationship_fn=upsert_relationship_fn,
     request_summarization_fn=request_summarization_fn,
+    fire_trigger_fn=fire_trigger_fn,
   )
 
 
@@ -161,6 +168,91 @@ async def _on_disconnect(ctx: Any) -> None:
     await ctx.write_data("config.json", "{}")
   except Exception:
     log.warning("Failed to clear config.json on disconnect")
+
+
+# ---------------------------------------------------------------------------
+# Trigger schema — declares what trigger types this skill supports
+# ---------------------------------------------------------------------------
+
+TELEGRAM_TRIGGER_SCHEMA = TriggerSchema(
+  trigger_types=[
+    TriggerTypeDefinition(
+      type="message_match",
+      label="Message Match",
+      description="Fires when an incoming message matches the specified conditions",
+      condition_fields=[
+        TriggerFieldSchema(name="message.text", type="string", description="Message text content"),
+        TriggerFieldSchema(
+          name="message.sender_name", type="string", description="Sender's display name"
+        ),
+        TriggerFieldSchema(name="message.chat_name", type="string", description="Chat/group title"),
+        TriggerFieldSchema(name="message.chat_id", type="string", description="Chat ID"),
+        TriggerFieldSchema(name="message.sender_id", type="string", description="Sender's user ID"),
+        TriggerFieldSchema(
+          name="message.is_outgoing", type="boolean", description="Whether the message is outgoing"
+        ),
+      ],
+      config_schema={
+        "type": "object",
+        "properties": {
+          "chat_filter": {
+            "type": "string",
+            "description": "Only match messages from chats whose name contains this string",
+          },
+          "sender_filter": {
+            "type": "string",
+            "description": "Only match messages from senders whose name contains this string",
+          },
+          "exclude_outgoing": {
+            "type": "boolean",
+            "description": "Skip outgoing messages (default: true)",
+            "default": True,
+          },
+        },
+      },
+    ),
+    TriggerTypeDefinition(
+      type="chat_event",
+      label="Chat Event",
+      description="Fires on chat membership changes (user joined, left, kicked, etc.)",
+      condition_fields=[
+        TriggerFieldSchema(
+          name="event.action",
+          type="string",
+          description="Action type: user_joined, user_left, user_added, user_kicked",
+        ),
+        TriggerFieldSchema(name="event.chat_name", type="string", description="Chat/group title"),
+        TriggerFieldSchema(name="event.chat_id", type="string", description="Chat ID"),
+      ],
+      config_schema={
+        "type": "object",
+        "properties": {
+          "chat_filter": {
+            "type": "string",
+            "description": "Only match events from chats whose name contains this string",
+          },
+        },
+      },
+    ),
+  ]
+)
+
+
+# ---------------------------------------------------------------------------
+# Trigger hooks
+# ---------------------------------------------------------------------------
+
+
+async def _on_trigger_register(ctx: Any, trigger: Any) -> None:
+  from .triggers import register_trigger
+
+  register_trigger(trigger)
+
+
+async def _on_trigger_remove(ctx: Any, trigger_id: str) -> None:
+  from .triggers import remove_trigger
+
+  remove_trigger(trigger_id)
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +423,7 @@ skill = SkillDefinition(
   tick_interval=1_200_000,  # 20 minutes
   tools=_convert_tools(),
   options=TOOL_CATEGORY_OPTIONS,
+  trigger_schema=TELEGRAM_TRIGGER_SCHEMA,
   hooks=SkillHooks(
     on_load=_on_load,
     on_unload=_on_unload,
@@ -340,5 +433,7 @@ skill = SkillDefinition(
     on_setup_submit=on_setup_submit,
     on_setup_cancel=on_setup_cancel,
     on_disconnect=_on_disconnect,
+    on_trigger_register=_on_trigger_register,
+    on_trigger_remove=_on_trigger_remove,
   ),
 )

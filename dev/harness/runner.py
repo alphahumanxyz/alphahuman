@@ -414,9 +414,7 @@ async def _run(skill_dir: str, verbose: bool) -> int:
         type=trigger_types[0].type,
         name="Test Trigger",
         description="Runner test trigger",
-        conditions=[
-          TriggerCondition(type="keyword", field="message.text", keywords=["test"])
-        ],
+        conditions=[TriggerCondition(type="keyword", field="message.text", keywords=["test"])],
         config={},
         enabled=True,
         created_at="2026-01-01T00:00:00Z",

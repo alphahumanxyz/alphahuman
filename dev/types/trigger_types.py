@@ -18,7 +18,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # Trigger Condition (recursive — supports compound AND/OR/NOT)
 # ---------------------------------------------------------------------------
@@ -47,7 +46,9 @@ class TriggerCondition(BaseModel):
     default=None, description='Regex flags string, e.g. "i" for case-insensitive'
   )
   # keyword
-  keywords: list[str] | None = Field(default=None, description="Keywords to match (for type=keyword)")
+  keywords: list[str] | None = Field(
+    default=None, description="Keywords to match (for type=keyword)"
+  )
   match_mode: Literal["any", "all"] | None = Field(
     default=None, description='Whether any or all keywords must match (default "any")'
   )

@@ -55,6 +55,7 @@ async def on_skill_load(
   upsert_entity_fn: Any = None,
   upsert_relationship_fn: Any = None,
   request_summarization_fn: Any = None,
+  fire_trigger_fn: Any = None,
 ) -> None:
   """Called when the host loads this skill. Initializes Telethon + SQLite."""
   raw_api_id = os.environ.get("TELEGRAM_API_ID", params.get("apiId", "0")) or "0"
@@ -77,6 +78,7 @@ async def on_skill_load(
   # Store entity callbacks and summarization callback for use in event handlers and tick
   _store_entity_callbacks(upsert_entity_fn, upsert_relationship_fn)
   _store_summarization_callback(request_summarization_fn)
+  _store_fire_trigger_callback(fire_trigger_fn)
 
   if not api_id or not api_hash:
     log.error("Missing TELEGRAM_API_ID or TELEGRAM_API_HASH")
@@ -148,6 +150,11 @@ async def on_skill_unload() -> None:
     await client.disconnect()
   except Exception:
     log.exception("Error disconnecting client")
+
+  # Clear in-memory triggers
+  from .triggers import clear_all as clear_triggers
+
+  clear_triggers()
 
   await close_db()
   store.reset_state()

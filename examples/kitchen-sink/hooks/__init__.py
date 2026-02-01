@@ -2,6 +2,7 @@
 Lifecycle hooks for kitchen-sink example skill.
 """
 
+from .interop import on_interop_call, on_interop_data
 from .load import _load_configuration, on_load
 from .memory_flush import on_memory_flush
 from .message import on_after_response, on_before_message
@@ -14,6 +15,8 @@ __all__ = [
   "_load_configuration",
   "on_after_response",
   "on_before_message",
+  "on_interop_call",
+  "on_interop_data",
   "on_load",
   "on_memory_flush",
   "on_session_end",

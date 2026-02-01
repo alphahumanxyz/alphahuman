@@ -27,6 +27,8 @@ if str(_skill_dir) not in sys.path:
 from hooks import (
   on_after_response,
   on_before_message,
+  on_interop_call,
+  on_interop_data,
   on_load,
   on_memory_flush,
   on_session_end,
@@ -35,9 +37,12 @@ from hooks import (
   on_tick,
   on_unload,
 )
+from interop import interop_schema
 from setup import on_setup_cancel, on_setup_start, on_setup_submit
 from tools import (
   execute_add_note,
+  execute_check_skill_status,
+  execute_discover_skills,
   execute_find_entities,
   execute_get_note,
   execute_get_session_info,
@@ -169,6 +174,35 @@ def _build_tools() -> list[SkillTool]:
       ),
       execute=execute_get_session_info,
     ),
+    # --- Interop tools (consuming other skills) ---
+    SkillTool(
+      definition=ToolDefinition(
+        name="check_skill_status",
+        description="Check another skill's status via its exposed data endpoint.",
+        parameters={
+          "type": "object",
+          "properties": {
+            "skill_id": {
+              "type": "string",
+              "description": "Target skill ID to query",
+            },
+          },
+          "required": ["skill_id"],
+        },
+      ),
+      execute=execute_check_skill_status,
+    ),
+    SkillTool(
+      definition=ToolDefinition(
+        name="discover_skills",
+        description="Discover all registered skills and their exposed data/functions.",
+        parameters={
+          "type": "object",
+          "properties": {},
+        },
+      ),
+      execute=execute_discover_skills,
+    ),
   ]
 
 
@@ -177,12 +211,13 @@ skill = SkillDefinition(
   description=(
     "Comprehensive example skill demonstrating every capability: "
     "lifecycle hooks, tools, setup flow, state, memory, entities, "
-    "events, and periodic tasks."
+    "events, inter-skill communication, and periodic tasks."
   ),
   version="1.0.0",
   tools=_build_tools(),
   tick_interval=60_000,  # 60 seconds, in milliseconds
   has_setup=True,
+  interop_schema=interop_schema,
   hooks=SkillHooks(
     on_load=on_load,
     on_unload=on_unload,
@@ -196,5 +231,7 @@ skill = SkillDefinition(
     on_setup_start=on_setup_start,
     on_setup_submit=on_setup_submit,
     on_setup_cancel=on_setup_cancel,
+    on_interop_data=on_interop_data,
+    on_interop_call=on_interop_call,
   ),
 )

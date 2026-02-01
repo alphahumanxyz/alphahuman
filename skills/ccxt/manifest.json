@@ -1,8 +1,8 @@
 {
   "id": "ccxt",
-  "name": "CCXT",
+  "name": "Crypto Exchanges",
   "version": "1.0.0",
-  "description": "Cryptocurrency exchange trading connector via CCXT — connect to multiple exchanges simultaneously for trading, balance checks, market data, and order management.",
+  "description": "A skill that connects to multiple cryptocurrency exchanges simultaneously for trading, balance checks, market data, and order management.",
   "runtime": "python",
   "entry": "__main__.py",
   "tick_interval": 300000,

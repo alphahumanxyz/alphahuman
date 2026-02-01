@@ -1,7 +1,21 @@
 {
-  "generatedAt": "2026-02-01T02:39:56.613394+00:00",
+  "generatedAt": "2026-02-01T02:51:56.135609+00:00",
   "version": "1.0.0",
   "skills": [
+    {
+      "name": "browser",
+      "description": "Browser automation and control skill \u2014 navigate pages, interact with elements, execute JavaScript, intercept network requests, manage cookies, take screenshots, and automate web workflows using Playwright.",
+      "icon": null,
+      "version": "1.0.0",
+      "tools": [],
+      "hooks": [
+        "on_load",
+        "on_unload",
+        "on_status"
+      ],
+      "tickIntervalMinutes": null,
+      "path": "skills/browser"
+    },
     {
       "name": "ccxt",
       "description": "Cryptocurrency exchange trading connector via CCXT \u2014 connect to multiple exchanges simultaneously for trading, balance checks, market data, and order management.",
@@ -35,6 +49,36 @@
       ],
       "tickIntervalMinutes": null,
       "path": "skills/ccxt"
+    },
+    {
+      "name": "desktop",
+      "description": "Desktop automation skill \u2014 control mouse and keyboard to autonomously navigate and interact with the desktop, applications, and windows. Supports mouse movement, clicking, scrolling, keyboard typing, hotkeys, and screen capture.",
+      "icon": null,
+      "version": "1.0.0",
+      "tools": [
+        "mouse_move",
+        "mouse_click",
+        "mouse_press",
+        "mouse_release",
+        "mouse_scroll",
+        "mouse_drag",
+        "mouse_position",
+        "keyboard_type",
+        "keyboard_press",
+        "keyboard_release",
+        "keyboard_tap",
+        "keyboard_hotkey",
+        "keyboard_write",
+        "screen_capture",
+        "screen_size",
+        "wait"
+      ],
+      "hooks": [
+        "on_load",
+        "on_unload"
+      ],
+      "tickIntervalMinutes": null,
+      "path": "skills/desktop"
     },
     {
       "name": "email",
@@ -234,14 +278,14 @@
       "path": "skills/otter"
     },
     {
-      "name": "skill-generator",
-      "description": "",
+      "name": "skill-coder",
+      "description": "Meta-skill that creates, validates, tests, and scans new AlphaHuman skills on-the-fly.",
       "icon": null,
-      "version": null,
+      "version": "1.0.0",
       "tools": [],
       "hooks": [],
       "tickIntervalMinutes": null,
-      "path": "skills/skill-generator"
+      "path": "skills/skill-coder"
     },
     {
       "name": "slack",

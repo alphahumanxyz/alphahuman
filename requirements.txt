@@ -9,3 +9,6 @@ aiosqlite>=0.20.0
 -r skills/notion/requirements.txt
 -r skills/otter/requirements.txt
 -r skills/telegram/requirements.txt
+-r skills/slack/requirements.txt
+-r skills/ccxt/requirements.txt
+-r skills/wallet/requirements.txt

@@ -1,49 +1,45 @@
-async def get_messages(
-    chat_id: str | int,
-    limit: int = 20,
-    offset: int = 0,
-) -> ApiResult[list[TelegramMessage]]:
-    """Get messages from a chat (cache-first)."""
-    try:
-        cached = store.get_cached_messages(str(chat_id), limit, offset)
-        if cached:
-            log.debug("Returning %d cached messages for chat %s", len(cached), chat_id)
-            return ApiResult(data=cached, from_cache=True)
+"""
+Message API — Telethon wrappers for message operations.
 
-        await enforce_rate_limit("api_read")
+This module re-exports all functions from the message_api subdirectory
+for backward compatibility.
+"""
 
-        mtproto = get_client()
-        client = mtproto.get_client()
-        entity = await client.get_input_entity(chat_id)
+from __future__ import annotations
 
-        result = await mtproto.with_flood_wait_handling(
-            lambda: client(
-                GetHistoryRequest(
-                    peer=entity,
-                    limit=limit,
-                    offset_id=offset,
-                    offset_date=0,
-                    add_offset=0,
-                    max_id=0,
-                    min_id=0,
-                    hash=0,
-                )
-            )
-        )
+# Re-export all functions from the organized submodules
+from .message_api import (
+    send_reaction,
+    remove_reaction,
+    get_messages,
+    get_drafts,
+    edit_message,
+    delete_message,
+    forward_message,
+    pin_message,
+    unpin_message,
+    mark_as_read,
+    reply_to_message,
+    save_draft,
+    clear_draft,
+    create_poll,
+    list_topics,
+)
 
-        if not result or not hasattr(result, "messages"):
-            return ApiResult(data=[], from_cache=False)
-
-        messages: list[TelegramMessage] = []
-        for msg in result.messages:
-            if isinstance(msg, Message):
-                built = build_message(msg, str(chat_id))
-                if built:
-                    messages.append(built)
-
-        store.add_messages(str(chat_id), messages)
-        log.debug("Fetched %d messages from chat %s", len(messages), chat_id)
-        return ApiResult(data=messages, from_cache=False)
-    except Exception:
-        log.exception("Error fetching messages for chat %s", chat_id)
-        return ApiResult(data=[], from_cache=False)
+__all__ = [
+    "send_reaction",
+    "remove_reaction",
+    "get_messages",
+    "get_drafts",
+    "edit_message",
+    "delete_message",
+    "forward_message",
+    "pin_message",
+    "unpin_message",
+    "mark_as_read",
+    "reply_to_message",
+    "save_draft",
+    "clear_draft",
+    "create_poll",
+    "list_topics",
+]

@@ -1,5 +1,12 @@
 from __future__ import annotations
-from dev.types.skill_types import SkillDefinition, SkillContext, SkillHooks, SkillTool, ToolDefinition, ToolResult
+from dev.types.skill_types import (
+    SkillDefinition,
+    SkillContext,
+    SkillHooks,
+    SkillTool,
+    ToolDefinition,
+    ToolResult,
+)
 import json
 import logging
 import re
@@ -7,9 +14,13 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+
 """Section: Filter to likely tool names (exclude the skill name itself and common fields)"""
 
-    # Filter to likely tool names (exclude the skill name itself and common fields)
+
+# Filter to likely tool names (exclude the skill name itself and common fields)
+def _filter_tool_names(tool_names: list[str], info: dict[str, Any], content: str) -> dict[str, Any]:
+    """Filter tool names and find hooks."""
     info["tool_names"] = [
         n
         for n in tool_names
@@ -32,4 +43,3 @@ from typing import Any
     info["hooks"] = hooks_found
 
     return info
-

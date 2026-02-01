@@ -4,6 +4,8 @@ Element interaction mixin for browser client.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class BrowserInteractionMixin:
   """Mixin providing element interaction methods."""

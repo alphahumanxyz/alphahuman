@@ -4,6 +4,8 @@ Page management mixin for browser client.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class BrowserPagesMixin:
   """Mixin providing page management methods."""

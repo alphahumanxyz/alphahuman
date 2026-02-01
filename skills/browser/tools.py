@@ -7,7 +7,10 @@ and controlling web browsers via Playwright.
 
 from __future__ import annotations
 
-from mcp.types import Tool
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+  from mcp.types import Tool
 
 from .tools_content import CONTENT_TOOLS
 from .tools_interaction import INTERACTION_TOOLS

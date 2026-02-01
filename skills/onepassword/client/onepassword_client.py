@@ -23,7 +23,7 @@ class OnePasswordClient:
 
   def _run_op_command(self, args: list[str], capture_output: bool = True) -> dict[str, Any]:
     """Run an op CLI command and return parsed JSON output."""
-    cmd = ["op"] + args
+    cmd = ["op", *args]
 
     # Add account if specified
     if self.account:

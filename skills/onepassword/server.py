@@ -20,7 +20,6 @@ async def on_skill_load(params: dict[str, Any], set_state_fn: Any | None = None)
   # - macOS: brew install 1password-cli
   # - Linux: Download from 1Password website or use package manager
   # - Windows: Download installer or use winget/choco
-  data_dir = params.get("dataDir", "")
   config = params.get("config", {})
 
   account = config.get("account") or None

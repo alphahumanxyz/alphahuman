@@ -5,6 +5,7 @@ Storage mixin for browser client (cookies, localStorage, sessionStorage).
 from __future__ import annotations
 
 import json
+from typing import Any
 
 
 class BrowserStorageMixin:

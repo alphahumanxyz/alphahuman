@@ -8,6 +8,7 @@ Integrates with the SkillServer from dev.runtime.server for reverse RPC.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import Any
@@ -25,6 +26,7 @@ from .db.connection import init_db, close_db, get_db
 from .db.summaries import generate_summaries
 from .entities import emit_initial_entities, emit_summaries
 from .events.handlers import register_event_handlers
+from .sync.initial_sync import run_initial_sync
 
 log = logging.getLogger("skill.telegram.server")
 
@@ -105,12 +107,13 @@ async def on_skill_load(
             # Register event handlers for real-time updates
             await register_event_handlers(client.get_client())
 
-            # Emit initial entities after successful auth
-            if upsert_entity_fn and upsert_relationship_fn:
-                try:
-                    await emit_initial_entities(upsert_entity_fn, upsert_relationship_fn)
-                except Exception:
-                    log.exception("Failed to emit initial entities")
+            # Launch initial sync as background task
+            # (loads dialogs, caches users, preloads messages, emits entities)
+            asyncio.create_task(_run_initial_sync_safe(
+                client.get_client(),
+                upsert_entity_fn,
+                upsert_relationship_fn,
+            ))
         else:
             store.set_auth_status("not_authenticated")
             log.warning(
@@ -167,6 +170,18 @@ def _store_entity_callbacks(
 def get_entity_callbacks() -> tuple[Any, Any]:
     """Return the stored entity callbacks (for use by event handlers)."""
     return _upsert_entity_fn, _upsert_relationship_fn
+
+
+async def _run_initial_sync_safe(
+    client: Any,
+    upsert_entity_fn: Any = None,
+    upsert_relationship_fn: Any = None,
+) -> None:
+    """Wrapper to run initial sync without crashing the skill on failure."""
+    try:
+        await run_initial_sync(client, upsert_entity_fn, upsert_relationship_fn)
+    except Exception:
+        log.exception("Initial sync background task failed")
 
 
 async def on_skill_tick() -> None:

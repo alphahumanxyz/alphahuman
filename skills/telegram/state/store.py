@@ -322,6 +322,51 @@ def set_loading_messages(value: bool) -> None:
     _notify()
 
 
+def set_initial_sync_complete(value: bool) -> None:
+    global _state
+    _state = _state.model_copy(update={"initial_sync_complete": value})
+    _notify()
+
+
+def set_sync_pts(pts: int, qts: int, date: int, seq: int) -> None:
+    global _state
+    _state = _state.model_copy(update={
+        "sync_pts": pts,
+        "sync_qts": qts,
+        "sync_date": date,
+        "sync_seq": seq,
+    })
+    _notify()
+
+
+def update_chat_draft(chat_id: str, draft: str | None) -> None:
+    update_chat(chat_id, {"draft_message": draft})
+
+
+def set_chat_pinned(chat_id: str, pinned: bool) -> None:
+    update_chat(chat_id, {"is_pinned": pinned})
+
+
+def reorder_pinned_chats(pinned_ids: list[str]) -> None:
+    """Reorder chats so that pinned_ids appear first in order."""
+    global _state
+    pinned_set = set(pinned_ids)
+    # Mark pinned state
+    new_chats = dict(_state.chats)
+    for cid, chat in new_chats.items():
+        if cid in pinned_set and not chat.is_pinned:
+            new_chats[cid] = chat.model_copy(update={"is_pinned": True})
+        elif cid not in pinned_set and chat.is_pinned:
+            new_chats[cid] = chat.model_copy(update={"is_pinned": False})
+
+    # Reorder: pinned first, then rest in existing order
+    rest = [cid for cid in _state.chats_order if cid not in pinned_set]
+    new_order = [cid for cid in pinned_ids if cid in new_chats] + rest
+
+    _state = _state.model_copy(update={"chats": new_chats, "chats_order": new_order})
+    _notify()
+
+
 # ---------------------------------------------------------------------------
 # Reset
 # ---------------------------------------------------------------------------

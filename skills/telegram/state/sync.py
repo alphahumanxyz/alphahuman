@@ -53,6 +53,8 @@ def _build_host_state() -> TelegramHostState:
         connection_status=s.connection_status,
         auth_status=s.auth_status,
         is_initialized=s.is_initialized,
+        is_syncing=s.is_syncing,
+        initial_sync_complete=s.initial_sync_complete,
         current_user=s.current_user,
         chats_order=s.chats_order,
         chats=s.chats,

@@ -44,6 +44,9 @@ class TelegramChat(BaseModel):
     last_message: TelegramMessage | None = None
     last_message_date: float | None = None
     is_pinned: bool = False
+    is_muted: bool = False
+    is_archived: bool = False
+    draft_message: str | None = None
     photo: dict[str, str | None] | None = None
     participants_count: int | None = None
 
@@ -96,6 +99,11 @@ class TelegramState(BaseModel):
     # Sync
     is_syncing: bool = False
     is_synced: bool = False
+    initial_sync_complete: bool = False
+    sync_pts: int = 0
+    sync_qts: int = 0
+    sync_date: int = 0
+    sync_seq: int = 0
     # User
     current_user: TelegramUser | None = None
     # Users map
@@ -129,6 +137,8 @@ class TelegramHostState(BaseModel):
     connection_status: TelegramConnectionStatus = "disconnected"
     auth_status: TelegramAuthStatus = "not_authenticated"
     is_initialized: bool = False
+    is_syncing: bool = False
+    initial_sync_complete: bool = False
     current_user: TelegramUser | None = None
     chats_order: list[str] = Field(default_factory=list)
     chats: dict[str, TelegramChat] = Field(default_factory=dict)

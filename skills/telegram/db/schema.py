@@ -84,6 +84,23 @@ CREATE TABLE IF NOT EXISTS events (
     created_at REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_type_created ON events(event_type, created_at DESC);
+
+-- Update state tracking (for resumable sync)
+CREATE TABLE IF NOT EXISTS update_state (
+    key TEXT PRIMARY KEY,
+    pts INTEGER NOT NULL DEFAULT 0,
+    qts INTEGER NOT NULL DEFAULT 0,
+    date INTEGER NOT NULL DEFAULT 0,
+    seq INTEGER NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL
+);
+
+-- Per-channel pts tracking
+CREATE TABLE IF NOT EXISTS channel_pts (
+    channel_id TEXT PRIMARY KEY,
+    pts INTEGER NOT NULL DEFAULT 0,
+    updated_at REAL NOT NULL
+);
 """
 
 PRAGMA_SQL = """

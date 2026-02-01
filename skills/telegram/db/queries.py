@@ -221,3 +221,55 @@ async def prune_old_data(db: aiosqlite.Connection) -> None:
     await db.execute("DELETE FROM summaries WHERE created_at < ?", (now - 86400,))
     await db.execute("DELETE FROM events WHERE created_at < ?", (now - 3600,))
     await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Update state (for resumable sync)
+# ---------------------------------------------------------------------------
+
+async def get_update_state(db: aiosqlite.Connection) -> dict[str, int] | None:
+    cursor = await db.execute(
+        "SELECT pts, qts, date, seq FROM update_state WHERE key = 'global'"
+    )
+    row = await cursor.fetchone()
+    if not row:
+        return None
+    return {"pts": row[0], "qts": row[1], "date": row[2], "seq": row[3]}
+
+
+async def set_update_state(
+    db: aiosqlite.Connection, pts: int, qts: int, date: int, seq: int
+) -> None:
+    await db.execute(
+        """INSERT OR REPLACE INTO update_state (key, pts, qts, date, seq, updated_at)
+           VALUES ('global', ?, ?, ?, ?, ?)""",
+        (pts, qts, date, seq, time.time()),
+    )
+    await db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Channel pts tracking
+# ---------------------------------------------------------------------------
+
+async def get_channel_pts(db: aiosqlite.Connection, channel_id: str) -> int | None:
+    cursor = await db.execute(
+        "SELECT pts FROM channel_pts WHERE channel_id = ?", (channel_id,)
+    )
+    row = await cursor.fetchone()
+    return row[0] if row else None
+
+
+async def set_channel_pts(db: aiosqlite.Connection, channel_id: str, pts: int) -> None:
+    await db.execute(
+        """INSERT OR REPLACE INTO channel_pts (channel_id, pts, updated_at)
+           VALUES (?, ?, ?)""",
+        (channel_id, pts, time.time()),
+    )
+    await db.commit()
+
+
+async def get_all_channel_pts(db: aiosqlite.Connection) -> dict[str, int]:
+    cursor = await db.execute("SELECT channel_id, pts FROM channel_pts")
+    rows = await cursor.fetchall()
+    return {row[0]: row[1] for row in rows}

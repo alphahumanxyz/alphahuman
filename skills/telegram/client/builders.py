@@ -204,3 +204,29 @@ def build_entity_map(result: Any) -> dict[str, Any]:
             entity_map[str(c.id)] = c
 
     return entity_map
+
+
+# ---------------------------------------------------------------------------
+# Channel pts extraction
+# ---------------------------------------------------------------------------
+
+def extract_channel_pts_from_dialogs(dialogs: Any) -> dict[str, int]:
+    """Extract channel pts from raw GetDialogs result for sync tracking.
+
+    The dialogs result contains Dialog objects with a pts field for channels.
+    Returns a dict mapping channel_id -> pts.
+    """
+    channel_pts: dict[str, int] = {}
+
+    raw_dialogs = getattr(dialogs, "dialogs", []) or []
+    for d in raw_dialogs:
+        pts = getattr(d, "pts", None)
+        if pts is None:
+            continue
+        peer = getattr(d, "peer", None)
+        if peer is None:
+            continue
+        if isinstance(peer, PeerChannel):
+            channel_pts[str(peer.channel_id)] = pts
+
+    return channel_pts

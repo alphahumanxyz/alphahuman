@@ -18,7 +18,6 @@ from typing import Any
 import aiosqlite
 
 from ..client.imap_client import get_imap_client
-from ..client.parsers import parse_envelope_response
 from .queries import (
     upsert_emails_batch,
     upsert_sync_state,

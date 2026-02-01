@@ -13,7 +13,7 @@ from pydantic import BaseModel
 @dataclass
 class CalendarState:
   """In-memory state for calendar skill."""
-  
+
   is_initialized: bool = False
   connection_status: str = "disconnected"  # disconnected, connected, error
   connection_error: str | None = None

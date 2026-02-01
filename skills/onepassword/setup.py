@@ -68,7 +68,7 @@ async def on_setup_submit(ctx: Any, step_id: str, values: dict[str, Any]) -> Set
   """Validate and process a submitted step."""
   if step_id == "account":
     return await _handle_account(ctx, values)
-  
+
   return SetupResult(
     status="error",
     errors=[SetupFieldError(field="", message=f"Unknown step: {step_id}")],
@@ -82,38 +82,42 @@ async def on_setup_cancel(ctx: Any) -> None:
 
 async def _handle_account(ctx: Any, values: dict[str, Any]) -> SetupResult:
   global _account, _vault
-  
+
   account = str(values.get("account", "")).strip()
   vault = str(values.get("vault", "")).strip()
-  
+
   _account = account if account else ""
   _vault = vault if vault else ""
-  
+
   # Test connection
   try:
     from ..client.onepassword_client import OnePasswordClient
-    
-    client = OnePasswordClient(account=_account if _account else None, vault=_vault if _vault else None)
-    
+
+    client = OnePasswordClient(
+      account=_account if _account else None, vault=_vault if _vault else None
+    )
+
     if not client.check_authentication():
       return SetupResult(
         status="error",
-        errors=[SetupFieldError(
-          field="account",
-          message="Not authenticated with 1Password CLI. Please run 'op signin' first.",
-        )],
+        errors=[
+          SetupFieldError(
+            field="account",
+            message="Not authenticated with 1Password CLI. Please run 'op signin' first.",
+          )
+        ],
       )
-    
+
     # Store config
     config = {
       "account": _account,
       "vault": _vault,
     }
-    
+
     await ctx.write_data("config.json", json.dumps(config, indent=2))
-    
+
     _reset_state()
-    
+
     return SetupResult(
       status="complete",
       message="1Password configuration saved successfully.",

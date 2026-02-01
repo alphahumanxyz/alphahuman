@@ -33,28 +33,28 @@ def format_item_summary(item: dict) -> str:
   item_id = item.get("id", "unknown")
   vault = item.get("vault", {}).get("name", "unknown")
   category = item.get("category", "unknown")
-  
+
   return f"{title} ({category}) - Vault: {vault} (ID: {item_id})"
 
 
 def format_item_detail(item: dict) -> str:
   """Format a full item for display."""
   lines = []
-  
+
   lines.append(f"Title: {item.get('title', 'Untitled')}")
   lines.append(f"ID: {item.get('id', 'unknown')}")
-  
+
   if item.get("vault"):
     vault_name = item["vault"].get("name", "unknown")
     lines.append(f"Vault: {vault_name}")
-  
+
   if item.get("category"):
     lines.append(f"Category: {item['category']}")
-  
+
   if item.get("tags"):
     tags = ", ".join(item["tags"])
     lines.append(f"Tags: {tags}")
-  
+
   if item.get("fields"):
     lines.append("\nFields:")
     for field in item["fields"]:
@@ -66,14 +66,14 @@ def format_item_detail(item: dict) -> str:
       else:
         value = field.get("value", "")
         lines.append(f"  - {field_label}: {value}")
-  
+
   if item.get("urls"):
     lines.append("\nURLs:")
     for url_obj in item["urls"]:
       url = url_obj.get("href", "")
       if url:
         lines.append(f"  - {url}")
-  
+
   return "\n".join(lines)
 
 

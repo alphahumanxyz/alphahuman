@@ -22,7 +22,7 @@ async def list_events(
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.list_events(
     calendar_id=calendar_id,
     time_min=time_min,
@@ -38,7 +38,7 @@ async def get_event(calendar_id: str, event_id: str) -> dict[str, Any]:
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.get_event(calendar_id, event_id)
 
 
@@ -57,7 +57,7 @@ async def create_event(
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.create_event(
     calendar_id=calendar_id,
     title=title,
@@ -86,7 +86,7 @@ async def update_event(
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.update_event(
     calendar_id=calendar_id,
     event_id=event_id,
@@ -105,7 +105,7 @@ async def delete_event(calendar_id: str, event_id: str) -> None:
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   await client.delete_event(calendar_id, event_id)
 
 
@@ -120,7 +120,7 @@ async def search_events(
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.search_events(
     calendar_id=calendar_id,
     query=query,

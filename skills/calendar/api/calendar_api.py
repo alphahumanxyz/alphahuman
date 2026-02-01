@@ -15,7 +15,7 @@ async def list_calendars(show_hidden: bool = False) -> list[dict[str, Any]]:
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.list_calendars(show_hidden=show_hidden)
 
 
@@ -24,5 +24,5 @@ async def get_calendar(calendar_id: str) -> dict[str, Any]:
   client = get_client()
   if not client or not isinstance(client, GoogleCalendarClient):
     raise RuntimeError("Calendar client not initialized")
-  
+
   return await client.get_calendar(calendar_id)

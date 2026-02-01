@@ -33,7 +33,7 @@ def format_event_summary(event: dict) -> str:
   title = event.get("summary", "No title")
   start = event.get("start", {})
   start_time = ""
-  
+
   if "dateTime" in start:
     try:
       dt = datetime.fromisoformat(start["dateTime"].replace("Z", "+00:00"))
@@ -42,24 +42,24 @@ def format_event_summary(event: dict) -> str:
       start_time = start.get("dateTime", "")
   elif "date" in start:
     start_time = start["date"]
-  
+
   event_id = event.get("id", "unknown")
   location = event.get("location", "")
   location_str = f" @ {location}" if location else ""
-  
+
   return f"{start_time} | {title}{location_str} (ID: {event_id})"
 
 
 def format_event_detail(event: dict) -> str:
   """Format a full event for display."""
   lines = []
-  
+
   lines.append(f"Event ID: {event.get('id', 'unknown')}")
   lines.append(f"Title: {event.get('summary', 'No title')}")
-  
+
   start = event.get("start", {})
   end = event.get("end", {})
-  
+
   if "dateTime" in start:
     start_time = start["dateTime"]
     end_time = end.get("dateTime", "")
@@ -71,23 +71,23 @@ def format_event_detail(event: dict) -> str:
     lines.append(f"Date: {start['date']}")
     if end.get("date"):
       lines.append(f"End date: {end['date']}")
-  
+
   if event.get("location"):
     lines.append(f"Location: {event['location']}")
-  
+
   if event.get("description"):
     lines.append(f"\nDescription:\n{event['description']}")
-  
+
   attendees = event.get("attendees", [])
   if attendees:
     attendee_emails = [a.get("email", "") for a in attendees if a.get("email")]
     if attendee_emails:
       lines.append(f"\nAttendees: {', '.join(attendee_emails)}")
-  
+
   status = event.get("status", "")
   if status:
     lines.append(f"Status: {status}")
-  
+
   return "\n".join(lines)
 
 

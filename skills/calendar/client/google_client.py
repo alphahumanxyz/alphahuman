@@ -29,13 +29,13 @@ class GoogleCalendarClient:
     """Initialize with credentials data (from config.json)."""
     self.service: Any = None
     self.credentials: Credentials | None = None
-    
+
     if credentials_data:
       self._load_credentials(credentials_data)
 
   def _load_credentials(self, credentials_data: dict[str, Any]) -> None:
     """Load credentials from stored data.
-    
+
     Expected format:
     - If credentials_data contains 'token', 'refresh_token', etc. (authorized user info)
     - Or if it contains 'installed' or 'web' (OAuth client config), we need to complete OAuth flow
@@ -44,17 +44,19 @@ class GoogleCalendarClient:
       # Check if this is authorized user info (already authenticated)
       if "token" in credentials_data or "refresh_token" in credentials_data:
         creds = Credentials.from_authorized_user_info(credentials_data)
-        
+
         # Refresh if expired
         if creds.expired and creds.refresh_token:
           creds.refresh(Request())
-        
+
         self.credentials = creds
         self.service = build("calendar", "v3", credentials=creds)
       else:
         # This is OAuth client config, not authorized credentials
         # In a real implementation, you'd need to complete OAuth flow
-        raise ValueError("OAuth flow not yet implemented. Please provide authorized user credentials.")
+        raise ValueError(
+          "OAuth flow not yet implemented. Please provide authorized user credentials."
+        )
     except Exception as e:
       log.error("Failed to load Google credentials: %s", e)
       raise
@@ -80,7 +82,7 @@ class GoogleCalendarClient:
     """List all calendars."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       result = self.service.calendarList().list(showHidden=show_hidden).execute()
       return result.get("items", [])
@@ -92,7 +94,7 @@ class GoogleCalendarClient:
     """Get calendar details."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       return self.service.calendars().get(calendarId=calendar_id).execute()
     except HttpError as e:
@@ -111,7 +113,7 @@ class GoogleCalendarClient:
     """List events in a calendar."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       events_result = (
         self.service.events()
@@ -134,7 +136,7 @@ class GoogleCalendarClient:
     """Get event details."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       return self.service.events().get(calendarId=calendar_id, eventId=event_id).execute()
     except HttpError as e:
@@ -158,11 +160,11 @@ class GoogleCalendarClient:
     """Create a new event."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     event_body: dict[str, Any] = {
       "summary": title,
     }
-    
+
     # Set start/end times
     if all_day:
       event_body["start"] = {"date": start.split("T")[0]}
@@ -170,14 +172,14 @@ class GoogleCalendarClient:
     else:
       event_body["start"] = {"dateTime": start, "timeZone": timezone}
       event_body["end"] = {"dateTime": end, "timeZone": timezone}
-    
+
     if description:
       event_body["description"] = description
     if location:
       event_body["location"] = location
     if attendees:
       event_body["attendees"] = [{"email": email} for email in attendees]
-    
+
     try:
       return self.service.events().insert(calendarId=calendar_id, body=event_body).execute()
     except HttpError as e:
@@ -199,13 +201,13 @@ class GoogleCalendarClient:
     """Update an existing event."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     # Get existing event first
     try:
       event = await self.get_event(calendar_id, event_id)
     except ValueError:
       raise
-    
+
     # Update fields
     if title is not None:
       event["summary"] = title
@@ -215,7 +217,7 @@ class GoogleCalendarClient:
       event["location"] = location
     if attendees is not None:
       event["attendees"] = [{"email": email} for email in attendees]
-    
+
     # Update start/end times
     if start is not None or end is not None or all_day is not None:
       if all_day is True or (all_day is None and "date" in event.get("start", {})):
@@ -230,9 +232,11 @@ class GoogleCalendarClient:
           event["start"] = {"dateTime": start, "timeZone": event.get("start", {}).get("timeZone")}
         if end:
           event["end"] = {"dateTime": end, "timeZone": event.get("end", {}).get("timeZone")}
-    
+
     try:
-      return self.service.events().update(calendarId=calendar_id, eventId=event_id, body=event).execute()
+      return (
+        self.service.events().update(calendarId=calendar_id, eventId=event_id, body=event).execute()
+      )
     except HttpError as e:
       log.error("Failed to update event: %s", e)
       raise
@@ -241,7 +245,7 @@ class GoogleCalendarClient:
     """Delete an event."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       self.service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
     except HttpError as e:
@@ -261,7 +265,7 @@ class GoogleCalendarClient:
     """Search for events by query."""
     if not self.service:
       raise RuntimeError("Not authenticated")
-    
+
     try:
       events_result = (
         self.service.events()

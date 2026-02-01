@@ -84,7 +84,7 @@ async def on_setup_submit(ctx: Any, step_id: str, values: dict[str, Any]) -> Set
     return await _handle_provider(ctx, values)
   if step_id == "google_oauth":
     return await _handle_google_oauth(ctx, values)
-  
+
   return SetupResult(
     status="error",
     errors=[SetupFieldError(field="", message=f"Unknown step: {step_id}")],
@@ -98,16 +98,16 @@ async def on_setup_cancel(ctx: Any) -> None:
 
 async def _handle_provider(ctx: Any, values: dict[str, Any]) -> SetupResult:
   global _provider
-  
+
   provider_id = str(values.get("provider", "")).strip().lower()
   if not provider_id:
     return SetupResult(
       status="error",
       errors=[SetupFieldError(field="provider", message="Please select a provider")],
     )
-  
+
   _provider = provider_id
-  
+
   if provider_id == "google":
     return SetupResult(
       status="next",
@@ -132,14 +132,14 @@ async def _handle_provider(ctx: Any, values: dict[str, Any]) -> SetupResult:
 
 async def _handle_google_oauth(ctx: Any, values: dict[str, Any]) -> SetupResult:
   global _provider, _credentials
-  
+
   credentials_json_str = str(values.get("credentials_json", "")).strip()
   if not credentials_json_str:
     return SetupResult(
       status="error",
       errors=[SetupFieldError(field="credentials_json", message="Credentials JSON is required")],
     )
-  
+
   try:
     credentials_data = json.loads(credentials_json_str)
   except json.JSONDecodeError as e:
@@ -147,17 +147,19 @@ async def _handle_google_oauth(ctx: Any, values: dict[str, Any]) -> SetupResult:
       status="error",
       errors=[SetupFieldError(field="credentials_json", message=f"Invalid JSON: {e}")],
     )
-  
+
   # Validate credentials structure
   if "installed" not in credentials_data and "web" not in credentials_data:
     return SetupResult(
       status="error",
-      errors=[SetupFieldError(field="credentials_json", message="Invalid OAuth credentials format")],
+      errors=[
+        SetupFieldError(field="credentials_json", message="Invalid OAuth credentials format")
+      ],
     )
-  
+
   # Store credentials
   _credentials = credentials_data
-  
+
   # Store credentials for OAuth flow
   # Note: In a full implementation, you'd complete the OAuth flow here
   # For now, we store the OAuth client config and expect authorized credentials
@@ -166,12 +168,12 @@ async def _handle_google_oauth(ctx: Any, values: dict[str, Any]) -> SetupResult:
     "provider": _provider,
     "credentials": _credentials,  # OAuth client config
   }
-  
+
   try:
     await ctx.write_data("config.json", json.dumps(config, indent=2))
-    
+
     _reset_state()
-    
+
     return SetupResult(
       status="complete",
       message="Google Calendar OAuth config saved. Note: You'll need to complete OAuth authorization separately to get authorized user credentials.",

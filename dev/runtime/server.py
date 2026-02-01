@@ -190,7 +190,7 @@ class SkillServer:
 
       # Host requests are dispatched as concurrent tasks so the read
       # loop can keep processing reverse-RPC replies.
-      asyncio.create_task(self._handle_message(message))
+      _ = asyncio.create_task(self._handle_message(message))  # noqa: RUF006
 
   # --------------------------------------------------------------------- #
   # Internal — message dispatch
@@ -573,10 +573,10 @@ class SkillServer:
 
       def set_state(self, partial: dict[str, Any]) -> None:
         # Fire-and-forget
-        asyncio.ensure_future(server.set_state(partial))
+        _ = asyncio.ensure_future(server.set_state(partial))  # noqa: RUF006
 
       def emit_event(self, event_name: str, data: Any) -> None:
-        asyncio.ensure_future(server.emit_event(event_name, data))
+        _ = asyncio.ensure_future(server.emit_event(event_name, data))  # noqa: RUF006
 
       def get_options(self) -> dict[str, Any]:
         return dict(server._options)

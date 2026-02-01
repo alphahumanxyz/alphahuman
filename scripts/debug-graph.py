@@ -371,7 +371,8 @@ def interactive_repl(graph: EntityGraph) -> None:
         print(f"  {yellow('No results for')} {arg}")
         continue
       print()
-      print(f"  {bold(f'Results for "{arg}"')} ({len(results)})")
+      results_title = f'Results for "{arg}"'
+      print(f"  {bold(results_title)} ({len(results)})")
       print()
       for e in results[:20]:
         title = e.get("title") or "?"

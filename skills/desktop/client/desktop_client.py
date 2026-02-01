@@ -13,9 +13,7 @@ try:
   from PIL import ImageGrab
   from pynput import keyboard, mouse  # type: ignore[import-untyped]
   from pynput.keyboard import Key
-  from pynput.keyboard import Listener as KeyboardListener
   from pynput.mouse import Button
-  from pynput.mouse import Listener as MouseListener
 
   PYNPUT_AVAILABLE = True
 except ImportError:
@@ -65,7 +63,7 @@ except ImportError:
 
     class ImageGrab:  # type: ignore[no-redef]
       @staticmethod
-      def grab(*args: Any, **kwargs: Any) -> Any:
+      def grab(*args: Any, **kwargs: Any) -> Any:  # noqa: ARG004
         raise ImportError("Pillow is not installed")
 
 

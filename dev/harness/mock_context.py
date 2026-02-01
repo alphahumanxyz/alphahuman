@@ -182,7 +182,11 @@ def create_mock_context(
       for r in relationship_store:
         if type is not None and r.type != type:
           continue
-        if (direction == "outgoing" and r.source_id == entity_id) or (direction == "incoming" and r.target_id == entity_id) or (direction == "both" and (r.source_id == entity_id or r.target_id == entity_id)):
+        if (
+          (direction == "outgoing" and r.source_id == entity_id)
+          or (direction == "incoming" and r.target_id == entity_id)
+          or (direction == "both" and (r.source_id == entity_id or r.target_id == entity_id))
+        ):
           results.append(r)
       return results
 

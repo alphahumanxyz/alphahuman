@@ -243,10 +243,10 @@ async def invite_to_group(chat_id: str, user_ids: list[str]) -> ApiResult[bool]:
     else:
       for iu in input_users:
         await mtproto.with_flood_wait_handling(
-          lambda: client(
+          lambda uid=iu: client(
             AddChatUserRequest(
               chat_id=int(chat_id),
-              user_id=iu,
+              user_id=uid,
               fwd_limit=100,
             )
           )

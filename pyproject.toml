@@ -41,6 +41,13 @@ ignore = [
     "T201",  # print statements (allowed in scripts)
     "ARG001", # unused function argument (common in handlers)
     "ARG002", # unused method argument
+    "SIM102", # nested if statements (complex AST parsing code)
+    "E402",   # module level import not at top (conditional imports)
+    "E741",   # do not use variables named 'l', 'O', or 'I' (common in loops)
+    "B904",   # bare except (intentional in some error handling)
+    "PTH118", # Use Path.exists() (os.path.exists is fine)
+    "PTH103", # Use Path methods (os.path functions are fine)
+    "PTH123", # Use Path.open() (open() is fine)
 ]
 exclude = [
     ".git",

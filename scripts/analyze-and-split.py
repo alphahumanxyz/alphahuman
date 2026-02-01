@@ -343,11 +343,7 @@ class FileSplitter:
     for i, section in enumerate(sections):
       # Generate filename
       section_name = self._sanitize_section_name(section["name"])
-      if i == 0:
-        # First section goes to main file
-        new_file = self.file_path
-      else:
-        new_file = output_dir / f"{module_name}_{section_name}.py"
+      new_file = self.file_path if i == 0 else output_dir / f"{module_name}_{section_name}.py"
 
       # Extract section content
       start_line = section["start"] - 1  # Convert to 0-based
@@ -396,7 +392,7 @@ class FileSplitter:
       if not in_class:
         non_class_lines.append((i, line))
 
-    for i, cls in enumerate(classes):
+    for _i, cls in enumerate(classes):
       # Generate filename
       class_file = output_dir / f"{module_name}_{cls['name'].lower()}.py"
 

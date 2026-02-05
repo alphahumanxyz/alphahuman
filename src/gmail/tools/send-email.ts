@@ -83,22 +83,13 @@ export const sendEmailTool: ToolDefinition = {
   },
   execute(args: Record<string, unknown>): string {
     try {
-      // Ensure authenticated
-      const ensureValid = (globalThis as { ensureValidToken?: () => boolean }).ensureValidToken;
-      if (!ensureValid || !ensureValid()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Gmail authentication required. Please complete setup first.',
-        });
+      const gmailFetch = (globalThis as { gmailFetch?: (endpoint: string, options?: any) => any }).gmailFetch;
+      if (!gmailFetch) {
+        return JSON.stringify({ success: false, error: 'Gmail API helper not available' });
       }
 
-      const makeApi = (globalThis as { makeApiRequest?: (endpoint: string, options?: any) => any })
-        .makeApiRequest;
-      if (!makeApi) {
-        return JSON.stringify({
-          success: false,
-          error: 'API helper not available',
-        });
+      if (!oauth.getCredential()) {
+        return JSON.stringify({ success: false, error: 'Gmail not connected. Complete OAuth setup first.' });
       }
 
       // Validate required fields
@@ -228,7 +219,7 @@ export const sendEmailTool: ToolDefinition = {
       }
 
       // Send email
-      const response = makeApi('/users/me/messages/send', {
+      const response = gmailFetch('/users/me/messages/send', {
         method: 'POST',
         body: JSON.stringify(requestBody),
       });
@@ -244,7 +235,7 @@ export const sendEmailTool: ToolDefinition = {
 
       // Update local database if email was sent successfully
       if (sentMessage.id) {
-        const getEmailResponse = makeApi(`/users/me/messages/${sentMessage.id}`);
+        const getEmailResponse = gmailFetch(`/users/me/messages/${sentMessage.id}`);
         if (getEmailResponse.success) {
           const upsertEmail = (globalThis as { upsertEmail?: (msg: any) => void }).upsertEmail;
           if (upsertEmail) {

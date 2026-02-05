@@ -7,7 +7,20 @@
   "description": "Gmail integration via Google API — comprehensive email management with OAuth2 authentication, send/receive, labels, search, and attachments.",
   "auto_start": false,
   "platforms": ["windows", "macos", "linux", "android", "ios"],
-  "setup": { "required": true, "label": "Connect Gmail" },
+  "setup": {
+    "required": true,
+    "label": "Connect Gmail",
+    "oauth": {
+      "provider": "google",
+      "scopes": [
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/gmail.labels"
+      ],
+      "apiBaseUrl": "https://gmail.googleapis.com/gmail/v1"
+    }
+  },
   "entity_schema": {
     "entity_types": [
       {

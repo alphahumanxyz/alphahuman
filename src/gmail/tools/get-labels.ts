@@ -23,29 +23,20 @@ export const getLabelsTool: ToolDefinition = {
   },
   execute(args: Record<string, unknown>): string {
     try {
-      // Ensure authenticated
-      const ensureValid = (globalThis as { ensureValidToken?: () => boolean }).ensureValidToken;
-      if (!ensureValid || !ensureValid()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Gmail authentication required. Please complete setup first.',
-        });
+      const gmailFetch = (globalThis as { gmailFetch?: (endpoint: string, options?: any) => any }).gmailFetch;
+      if (!gmailFetch) {
+        return JSON.stringify({ success: false, error: 'Gmail API helper not available' });
       }
 
-      const makeApi = (globalThis as { makeApiRequest?: (endpoint: string, options?: any) => any })
-        .makeApiRequest;
-      if (!makeApi) {
-        return JSON.stringify({
-          success: false,
-          error: 'API helper not available',
-        });
+      if (!oauth.getCredential()) {
+        return JSON.stringify({ success: false, error: 'Gmail not connected. Complete OAuth setup first.' });
       }
 
       const typeFilter = (args.type as string) || 'all';
       const includeHidden = args.include_hidden === true;
 
       // Get labels from Gmail API
-      const response = makeApi('/users/me/labels');
+      const response = gmailFetch('/users/me/labels');
 
       if (!response.success) {
         return JSON.stringify({

@@ -27,13 +27,8 @@ declare global {
 function initGmailSkillState(): GmailSkillState {
   const state: GmailSkillState = {
     config: {
-      clientId: '',
-      clientSecret: '',
-      refreshToken: '',
-      accessToken: '',
-      tokenExpiry: 0,
+      credentialId: '',
       userEmail: '',
-      isAuthenticated: false,
       syncEnabled: true,
       syncIntervalMinutes: 15,
       maxEmailsPerSync: 100,

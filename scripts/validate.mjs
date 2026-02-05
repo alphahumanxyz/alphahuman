@@ -227,9 +227,14 @@ function validateSetupFlow(skillDir, manifest) {
   const entryPath = join(srcDir, skillDir, 'index.ts');
   if (!existsSync(entryPath)) return;
 
-  const content = readFileSync(entryPath, 'utf-8');
   // Also check tool files and other ts files that might define these
   const allContent = getAllTsContent(join(srcDir, skillDir));
+
+  // OAuth skills use onOAuthComplete instead of onSetupStart/onSetupSubmit
+  if (manifest.setup.oauth) {
+    validateOAuthSetup(skillDir, manifest, allContent);
+    return;
+  }
 
   const hasSetupStart = allContent.includes('onSetupStart');
   const hasSetupSubmit = allContent.includes('onSetupSubmit');
@@ -242,6 +247,52 @@ function validateSetupFlow(skillDir, manifest) {
   }
   if (hasSetupStart && hasSetupSubmit) {
     pass('Setup flow: onSetupStart and onSetupSubmit defined');
+  }
+}
+
+function validateOAuthSetup(skillDir, manifest, allContent) {
+  const oauthConfig = manifest.setup.oauth;
+
+  // Validate provider
+  if (!oauthConfig.provider || typeof oauthConfig.provider !== 'string') {
+    error(skillDir, 'setup.oauth.provider must be a non-empty string');
+  } else {
+    pass(`OAuth provider: "${oauthConfig.provider}"`);
+  }
+
+  // Validate scopes (must be an array)
+  if (!Array.isArray(oauthConfig.scopes)) {
+    error(skillDir, 'setup.oauth.scopes must be an array');
+  } else {
+    const allStrings = oauthConfig.scopes.every(s => typeof s === 'string');
+    if (!allStrings) {
+      error(skillDir, 'setup.oauth.scopes must contain only strings');
+    } else {
+      pass(`OAuth scopes: ${oauthConfig.scopes.length} scope(s)`);
+    }
+  }
+
+  // Validate apiBaseUrl
+  if (!oauthConfig.apiBaseUrl || typeof oauthConfig.apiBaseUrl !== 'string') {
+    error(skillDir, 'setup.oauth.apiBaseUrl must be a non-empty string');
+  } else if (!oauthConfig.apiBaseUrl.startsWith('https://')) {
+    error(skillDir, 'setup.oauth.apiBaseUrl must start with https://');
+  } else {
+    pass(`OAuth apiBaseUrl: ${oauthConfig.apiBaseUrl}`);
+  }
+
+  // Check that skill implements onOAuthComplete
+  const hasOAuthComplete = allContent.includes('onOAuthComplete');
+  if (!hasOAuthComplete) {
+    error(skillDir, 'setup.oauth is present but onOAuthComplete is not defined');
+  } else {
+    pass('OAuth lifecycle: onOAuthComplete defined');
+  }
+
+  // Warn if skill still has onSetupStart (likely leftover)
+  const hasSetupStart = allContent.includes('onSetupStart');
+  if (hasSetupStart) {
+    warn(skillDir, 'OAuth skill still defines onSetupStart (likely leftover from manual setup)');
   }
 }
 

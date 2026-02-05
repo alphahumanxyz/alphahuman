@@ -29,22 +29,13 @@ export const markEmailTool: ToolDefinition = {
   },
   execute(args: Record<string, unknown>): string {
     try {
-      // Ensure authenticated
-      const ensureValid = (globalThis as { ensureValidToken?: () => boolean }).ensureValidToken;
-      if (!ensureValid || !ensureValid()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Gmail authentication required. Please complete setup first.',
-        });
+      const gmailFetch = (globalThis as { gmailFetch?: (endpoint: string, options?: any) => any }).gmailFetch;
+      if (!gmailFetch) {
+        return JSON.stringify({ success: false, error: 'Gmail API helper not available' });
       }
 
-      const makeApi = (globalThis as { makeApiRequest?: (endpoint: string, options?: any) => any })
-        .makeApiRequest;
-      if (!makeApi) {
-        return JSON.stringify({
-          success: false,
-          error: 'API helper not available',
-        });
+      if (!oauth.getCredential()) {
+        return JSON.stringify({ success: false, error: 'Gmail not connected. Complete OAuth setup first.' });
       }
 
       const messageIds = args.message_ids as string[];
@@ -79,7 +70,7 @@ export const markEmailTool: ToolDefinition = {
             ...labelOperations,
           };
 
-          const response = makeApi('/users/me/messages/batchModify', {
+          const response = gmailFetch('/users/me/messages/batchModify', {
             method: 'POST',
             body: JSON.stringify(requestBody),
           });

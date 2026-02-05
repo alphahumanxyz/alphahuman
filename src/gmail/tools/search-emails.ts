@@ -32,22 +32,13 @@ export const searchEmailsTool: ToolDefinition = {
   },
   execute(args: Record<string, unknown>): string {
     try {
-      // Ensure authenticated
-      const ensureValid = (globalThis as { ensureValidToken?: () => boolean }).ensureValidToken;
-      if (!ensureValid || !ensureValid()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Gmail authentication required. Please complete setup first.',
-        });
+      const gmailFetch = (globalThis as { gmailFetch?: (endpoint: string, options?: any) => any }).gmailFetch;
+      if (!gmailFetch) {
+        return JSON.stringify({ success: false, error: 'Gmail API helper not available' });
       }
 
-      const makeApi = (globalThis as { makeApiRequest?: (endpoint: string, options?: any) => any })
-        .makeApiRequest;
-      if (!makeApi) {
-        return JSON.stringify({
-          success: false,
-          error: 'API helper not available',
-        });
+      if (!oauth.getCredential()) {
+        return JSON.stringify({ success: false, error: 'Gmail not connected. Complete OAuth setup first.' });
       }
 
       const query = args.query as string;
@@ -77,7 +68,7 @@ export const searchEmailsTool: ToolDefinition = {
       }
 
       // Search messages
-      const searchResponse = makeApi(`/users/me/messages?${params.join('&')}`);
+      const searchResponse = gmailFetch(`/users/me/messages?${params.join('&')}`);
 
       if (!searchResponse.success) {
         return JSON.stringify({
@@ -110,7 +101,7 @@ export const searchEmailsTool: ToolDefinition = {
         const batch = searchResults.messages.slice(i, i + batchSize);
 
         for (const msgRef of batch) {
-          const msgResponse = makeApi(`/users/me/messages/${msgRef.id}?format=metadata`);
+          const msgResponse = gmailFetch(`/users/me/messages/${msgRef.id}?format=metadata`);
 
           if (msgResponse.success) {
             const message = msgResponse.data;

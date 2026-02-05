@@ -1,10 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * runner-node.ts - QuickJS Skill Script Runner (Node.js)
+ * runner-node.ts - Skill Script Runner with live APIs (Node.js)
  *
  * Loads a compiled skill from skills/<skill-id>/index.js and executes
- * a user-written test script against it. Provides the same bridge APIs
- * as the Rust QuickJS runtime.
+ * a user-written test script against it. Uses real HTTP (via curl),
+ * persistent SQLite database, and real platform APIs.
+ *
+ * For unit testing with mocked APIs, use the test harness (yarn test) instead.
  *
  * Usage:
  *   npx tsx dev/test-harness/runner-node.ts <skill-id> <script-file>
@@ -12,41 +14,29 @@
  *
  * Example:
  *   yarn test:script simple-skill scripts/examples/test-simple-skill.js
+ *   yarn test:script notion scripts/examples/test-notion.js --clean
  *
  * Supported Features:
- *   - Bridge APIs: db, store, net, platform, state, data, cron, skills
+ *   - Bridge APIs: db, store, net (real HTTP), platform (real), state, data, cron, skills
  *   - Lifecycle hooks: init, start, stop
  *   - Setup flow: onSetupStart, onSetupSubmit
  *   - Options: onListOptions, onSetOption
  *   - Session events: onSessionStart, onSessionEnd
- *   - Timer mocking: setTimeout, setInterval
- *
- * Limitations:
- *   - Tools that reference IIFE-scoped state variables (like PING_COUNT, FAIL_COUNT)
- *     may throw ReferenceError because the new Function() sandbox doesn't expose
- *     globalThis properties as variable bindings. The production Rust QuickJS runtime
- *     handles this correctly.
- *   - Use simple-skill as a reference for harness-compatible skill structure.
+ *   - Timer tracking: setTimeout, setInterval
  */
 
 import { existsSync, readFileSync, rmSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createBridgeAPIs } from './bootstrap-node';
-import {
-  getMockState,
-  initMockState,
-  mockFetchError,
-  mockFetchResponse,
-  mockModelResponse,
-  resetMockState,
-  setEnv,
-  setModelAvailable,
-  setPlatformOs,
-} from './mock-state';
+import { config as loadDotenv } from 'dotenv';
+import { createBridgeAPIs, getLiveState, resetLiveState } from './bootstrap-live';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const rootDir = resolve(__dirname, '../..');
+
+// Load .env from the repo root
+loadDotenv({ path: resolve(rootDir, '.env') });
 
 // Colors for terminal output
 const colors = {
@@ -61,7 +51,7 @@ const colors = {
 
 function printBanner(): void {
   console.log(`${colors.cyan}═══════════════════════════════════════════════════════════════${colors.reset}`);
-  console.log(`${colors.cyan}            QuickJS Skill Script Runner (Node.js)              ${colors.reset}`);
+  console.log(`${colors.cyan}          Skill Script Runner (Live Mode · Node.js)            ${colors.reset}`);
   console.log(`${colors.cyan}═══════════════════════════════════════════════════════════════${colors.reset}`);
 }
 
@@ -90,16 +80,15 @@ ${colors.yellow}Script Helpers Available:${colors.reset}
   triggerSetupStart()            - Call onSetupStart, returns step definition
   triggerSetupSubmit(stepId, values) - Call onSetupSubmit
   triggerTimer(timerId)          - Fire a specific timer callback
-  __mockFetch(url, response)     - Set up mock HTTP response
-  __mockFetchError(url, message) - Set up mock HTTP error
-  __getMockState()               - Get full mock state for inspection
-  __resetMockState()             - Reset all mocks to initial state
+  listTools()                    - List available tool names
+  listTimers()                   - List registered timers
   __setEnv(key, value)           - Set environment variable
-  __setPlatformOs(os)            - Set platform.os() return value
-  __mockModelResponse(sub, resp) - Set mock model response for prompt substring
-  __setModelAvailable(bool)      - Set model availability
-  __getSubmittedSummaries()      - Get all model.submitSummary() submissions
-  __clearSummaries()             - Clear submitted summaries array
+  __getLiveState()               - Get tracking state (console, fetch calls, timers, etc.)
+  __resetLiveState()             - Reset tracking state
+
+${colors.yellow}Note:${colors.reset}
+  This runner uses ${colors.green}real HTTP${colors.reset} (via curl) and ${colors.green}persistent storage${colors.reset}.
+  For unit tests with mocked APIs, use: yarn test
 `);
 }
 
@@ -138,7 +127,6 @@ async function main(): Promise<void> {
   const scriptFile = filteredArgs[1];
 
   // Resolve paths relative to the skills repo root
-  const rootDir = resolve(__dirname, '../..');
   const skillDir = resolve(rootDir, 'skills', skillId);
   const skillIndexPath = resolve(skillDir, 'index.js');
   const skillManifestPath = resolve(skillDir, 'manifest.json');
@@ -182,27 +170,16 @@ async function main(): Promise<void> {
     }
   }
 
+  // Resolve backend connection from env
+  const backendUrl = process.env.BACKEND_URL || process.env.VITE_BACKEND_URL || 'https://api.alphahuman.xyz';
+  const jwtToken = process.env.JWT_TOKEN || process.env.VITE_DEV_JWT_TOKEN || '';
+
   console.log(`${colors.dim}Data directory: ${dataDir}${colors.reset}`);
+  console.log(`${colors.dim}Backend: ${backendUrl}${colors.reset}`);
+  console.log(`${colors.dim}Mode: live (real HTTP, persistent storage, socket.io)${colors.reset}`);
 
-  // Initialize mock state
-  initMockState();
-
-  // Forward environment variables to mock state
-  const envVarsToForward = [
-    'TELEGRAM_BOT_TOKEN',
-    'TELEGRAM_PHONE_NUMBER',
-    'NOTION_API_KEY',
-    'OPENAI_API_KEY',
-  ];
-  for (const key of envVarsToForward) {
-    const value = process.env[key];
-    if (value) {
-      setEnv(key, value);
-    }
-  }
-
-  // Create bridge APIs (with persistent file-backed storage)
-  const bridgeAPIs = await createBridgeAPIs({ dataDir });
+  // Create live bridge APIs (real HTTP, persistent storage, real platform APIs)
+  const bridgeAPIs = await createBridgeAPIs({ dataDir, jwtToken, backendUrl });
 
   // Build the global context that will be shared by skill and test script
   const G: Record<string, unknown> = {
@@ -214,16 +191,15 @@ async function main(): Promise<void> {
   G.self = G;
   G.window = G;
 
-  // Add __helpers for mock state access
+  // Add __helpers for state access from test scripts
   G.__helpers = {
-    getMockState,
-    mockFetchResponse,
-    mockFetchError,
-    mockModelResponse,
-    resetMockState,
-    setEnv,
-    setModelAvailable,
-    setPlatformOs,
+    getLiveState,
+    resetLiveState,
+    // Alias for compatibility with triggerTimer/listTimers helpers
+    getMockState: getLiveState,
+    setEnv: (key: string, value: string) => {
+      process.env[key] = value;
+    },
   };
 
   // IMPORTANT: Set WebSocket on globalThis BEFORE loading skill code
@@ -248,11 +224,14 @@ async function main(): Promise<void> {
       var db = G.db;
       var net = G.net;
       var platform = G.platform;
+      var backend = G.backend;
+      var socket = G.socket;
       var state = G.state;
       var data = G.data;
       var cron = G.cron;
       var skills = G.skills;
       var model = G.model;
+      var oauth = G.oauth;
       var setTimeout = G.setTimeout;
       var setInterval = G.setInterval;
       var clearTimeout = G.clearTimeout;
@@ -322,6 +301,8 @@ async function main(): Promise<void> {
       if (typeof onSessionEnd !== 'undefined') G.onSessionEnd = onSessionEnd;
       if (typeof onListOptions !== 'undefined') G.onListOptions = onListOptions;
       if (typeof onSetOption !== 'undefined') G.onSetOption = onSetOption;
+      if (typeof onOAuthComplete !== 'undefined') G.onOAuthComplete = onOAuthComplete;
+      if (typeof onOAuthRevoked !== 'undefined') G.onOAuthRevoked = onOAuthRevoked;
     `);
     fn(G);
   };
@@ -348,6 +329,8 @@ async function main(): Promise<void> {
     onSessionEnd?: (args: { sessionId: string }) => void;
     onListOptions?: () => { options: unknown[] };
     onSetOption?: (args: { name: string; value: unknown }) => void;
+    onOAuthComplete?: (args: { credentialId: string; provider: string; grantedScopes: string[]; accountLabel?: string }) => unknown;
+    onOAuthRevoked?: (args: { credentialId: string; reason: string }) => void;
   }
 
   const skillExport = G.__skill as { default?: SkillExport } | undefined;
@@ -365,6 +348,8 @@ async function main(): Promise<void> {
     if (skill.onSessionEnd && !G.onSessionEnd) G.onSessionEnd = skill.onSessionEnd;
     if (skill.onListOptions && !G.onListOptions) G.onListOptions = skill.onListOptions;
     if (skill.onSetOption && !G.onSetOption) G.onSetOption = skill.onSetOption;
+    if (skill.onOAuthComplete && !G.onOAuthComplete) G.onOAuthComplete = skill.onOAuthComplete;
+    if (skill.onOAuthRevoked && !G.onOAuthRevoked) G.onOAuthRevoked = skill.onOAuthRevoked;
   }
 
   // Report what was found
@@ -389,6 +374,8 @@ var onSessionStart = G.onSessionStart;
 var onSessionEnd = G.onSessionEnd;
 var onListOptions = G.onListOptions;
 var onSetOption = G.onSetOption;
+var onOAuthComplete = G.onOAuthComplete;
+var onOAuthRevoked = G.onOAuthRevoked;
 
 function callTool(name, args) {
   args = args || {};
@@ -434,11 +421,11 @@ function triggerSessionEnd(sessionId) {
 }
 
 function triggerTimer(timerId) {
-  var mockState = __helpers.getMockState();
-  var timer = mockState.timers.get(timerId);
+  var state = __helpers.getMockState();
+  var timer = state.timers.get(timerId);
   if (timer) {
     timer.callback();
-    if (!timer.isInterval) mockState.timers.delete(timerId);
+    if (!timer.isInterval) state.timers.delete(timerId);
   } else {
     console.warn('Timer ' + timerId + ' not found');
   }
@@ -457,44 +444,27 @@ function listTimers() {
   return result;
 }
 
-function __mockFetch(url, response) {
-  __helpers.mockFetchResponse(url, response.status, response.body, response.headers);
-}
-
-function __mockFetchError(url, message) {
-  __helpers.mockFetchError(url, message);
-}
-
-function __getMockState() {
-  return __helpers.getMockState();
-}
-
-function __resetMockState() {
-  __helpers.resetMockState();
-}
-
 function __setEnv(key, value) {
   __helpers.setEnv(key, value);
 }
 
-function __setPlatformOs(os) {
-  __helpers.setPlatformOs(os);
+function __getLiveState() {
+  return __helpers.getLiveState();
 }
 
-function __mockModelResponse(promptSubstring, response) {
-  __helpers.mockModelResponse(promptSubstring, response);
+function __resetLiveState() {
+  __helpers.resetLiveState();
 }
 
-function __setModelAvailable(available) {
-  __helpers.setModelAvailable(available);
+function triggerOAuthComplete(args) {
+  if (typeof onOAuthComplete === 'function') return onOAuthComplete(args);
+  console.warn('onOAuthComplete not defined');
+  return null;
 }
 
-function __getSubmittedSummaries() {
-  return __helpers.getMockState().summarySubmissions;
-}
-
-function __clearSummaries() {
-  __helpers.getMockState().summarySubmissions = [];
+function triggerOAuthRevoked(args) {
+  if (typeof onOAuthRevoked === 'function') return onOAuthRevoked(args);
+  console.warn('onOAuthRevoked not defined');
 }
 `;
 

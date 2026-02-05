@@ -256,6 +256,52 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     },
   };
 
+  // OAuth API - credential management and authenticated proxy
+  const oauth = {
+    getCredential: (): unknown => {
+      return state.oauthCredential;
+    },
+    fetch: (path: string, options?: Record<string, unknown>): { status: number; headers: Record<string, string>; body: string } => {
+      state.oauthFetchCalls.push({ path, options });
+
+      // Return 401 if no credential
+      if (!state.oauthCredential) {
+        return {
+          status: 401,
+          headers: {},
+          body: JSON.stringify({ error: 'No OAuth credential. Complete setup first.' }),
+        };
+      }
+
+      // Check for mock error
+      if (state.oauthFetchErrors[path]) {
+        throw new Error(state.oauthFetchErrors[path]);
+      }
+
+      // Check for mock response
+      const mockResponse = state.oauthFetchResponses[path];
+      if (mockResponse) {
+        return {
+          status: mockResponse.status,
+          headers: mockResponse.headers ?? {},
+          body: mockResponse.body,
+        };
+      }
+
+      // Default: return 404
+      return {
+        status: 404,
+        headers: {},
+        body: JSON.stringify({ error: 'Not found (no OAuth mock configured)' }),
+      };
+    },
+    revoke: (): boolean => {
+      state.oauthCredential = null;
+      state.oauthRevoked = true;
+      return true;
+    },
+  };
+
   // Timer mocks
   const setTimeout = (callback: () => void, delay = 0): number => {
     const id = state.nextTimerId++;
@@ -366,6 +412,7 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     cron,
     skills,
     model,
+    oauth,
     setTimeout,
     setInterval,
     clearTimeout,
@@ -440,6 +487,8 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     onDisconnect: undefined,
     onListOptions: undefined,
     onSetOption: undefined,
+    onOAuthComplete: undefined,
+    onOAuthRevoked: undefined,
     // Cleanup hook for persistent DB
     __cleanup: () => {
       if (persistentDb) {

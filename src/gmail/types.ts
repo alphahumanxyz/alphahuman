@@ -1,13 +1,8 @@
 // Gmail skill type definitions
 
 export interface SkillConfig {
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
-  accessToken: string;
-  tokenExpiry: number;
+  credentialId: string;
   userEmail: string;
-  isAuthenticated: boolean;
   syncEnabled: boolean;
   syncIntervalMinutes: number;
   maxEmailsPerSync: number;
@@ -201,42 +196,6 @@ export interface SyncStatus {
   nextSyncTime: number;
 }
 
-export interface SetupStep {
-  id: string;
-  title: string;
-  description: string;
-  fields: SetupField[];
-}
-
-export interface SetupField {
-  name: string;
-  type: 'text' | 'password' | 'boolean' | 'select';
-  label: string;
-  description?: string;
-  required?: boolean;
-  default?: unknown;
-  options?: Array<{ label: string; value: string }>;
-}
-
-export interface SetupSubmitArgs {
-  stepId: string;
-  values: Record<string, unknown>;
-}
-
-export interface OAuth2Token {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  token_type: string;
-  scope: string;
-}
-
-export interface OAuth2Config {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-  scope: string;
-}
 
 export interface ApiError {
   code: number;

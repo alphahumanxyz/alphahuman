@@ -167,6 +167,13 @@ function createBridgeAPIs() {
       submitSummary: () => {},
     },
 
+    // OAuth API
+    oauth: {
+      getCredential: () => null,
+      fetch: (path, options) => ({ status: 404, headers: {}, body: '{"error":"No OAuth mock configured"}' }),
+      revoke: () => true,
+    },
+
     // Console
     console: {
       log: (...args) => {
@@ -328,6 +335,8 @@ function testSkill(skillDir, skillName) {
     sandbox.onDisconnect = undefined;
     sandbox.onListOptions = undefined;
     sandbox.onSetOption = undefined;
+    sandbox.onOAuthComplete = undefined;
+    sandbox.onOAuthRevoked = undefined;
 
     const context = vm.createContext(sandbox);
 
@@ -358,7 +367,7 @@ function testSkill(skillDir, skillName) {
 
       // List tools
       for (const tool of sandbox.globalThis.tools) {
-        if (tool.name && tool.description && typeof tool.execute === 'function') {
+        if (tool && tool.name && tool.description && typeof tool.execute === 'function') {
           console.log(`    - ${tool.name}`);
         }
       }

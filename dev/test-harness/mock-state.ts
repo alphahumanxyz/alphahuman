@@ -63,6 +63,21 @@ export interface MockState {
 
   /** model.submitSummary() recorded submissions */
   summarySubmissions: Array<SummarySubmissionRecord>;
+
+  /** OAuth mock credential */
+  oauthCredential: OAuthCredentialMock | null;
+
+  /** Recorded oauth.fetch calls */
+  oauthFetchCalls: Array<{ path: string; options?: OAuthFetchOptionsMock }>;
+
+  /** Path -> mock response for oauth.fetch */
+  oauthFetchResponses: Record<string, { status: number; body: string; headers?: Record<string, string> }>;
+
+  /** Path -> error message for oauth.fetch */
+  oauthFetchErrors: Record<string, string>;
+
+  /** Whether oauth.revoke() was called */
+  oauthRevoked: boolean;
 }
 
 export interface DbTable {
@@ -89,6 +104,23 @@ export interface TimerEntry {
   delay: number;
   isInterval: boolean;
   scheduledAt: number;
+}
+
+export interface OAuthCredentialMock {
+  credentialId: string;
+  provider: string;
+  scopes: string[];
+  isValid: boolean;
+  createdAt: number;
+  accountLabel?: string;
+}
+
+export interface OAuthFetchOptionsMock {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeout?: number;
+  baseUrl?: string;
 }
 
 export interface SummarySubmissionRecord {
@@ -137,6 +169,11 @@ function createFreshState(): MockState {
     modelResponses: {},
     modelAvailable: true,
     summarySubmissions: [],
+    oauthCredential: null,
+    oauthFetchCalls: [],
+    oauthFetchResponses: {},
+    oauthFetchErrors: {},
+    oauthRevoked: false,
   };
 }
 
@@ -161,6 +198,8 @@ export function initMockState(options?: {
   dataFiles?: Record<string, string>;
   modelResponses?: Record<string, string>;
   modelAvailable?: boolean;
+  oauthCredential?: OAuthCredentialMock;
+  oauthFetchResponses?: Record<string, { status: number; body: string; headers?: Record<string, string> }>;
 }): void {
   resetMockState();
 
@@ -190,6 +229,12 @@ export function initMockState(options?: {
   }
   if (options?.modelAvailable !== undefined) {
     mockState.modelAvailable = options.modelAvailable;
+  }
+  if (options?.oauthCredential) {
+    mockState.oauthCredential = { ...options.oauthCredential };
+  }
+  if (options?.oauthFetchResponses) {
+    mockState.oauthFetchResponses = { ...options.oauthFetchResponses };
   }
 }
 
@@ -228,4 +273,27 @@ export function mockModelResponse(promptSubstring: string, response: string): vo
 /** Set whether the mock model is available */
 export function setModelAvailable(available: boolean): void {
   mockState.modelAvailable = available;
+}
+
+/** Set up a mock OAuth credential */
+export function mockOAuthCredential(credential: OAuthCredentialMock): void {
+  mockState.oauthCredential = { ...credential };
+  mockState.oauthRevoked = false;
+}
+
+/** Set up a mock OAuth fetch response for a path */
+export function mockOAuthFetchResponse(
+  path: string,
+  status: number,
+  body: string,
+  headers?: Record<string, string>
+): void {
+  mockState.oauthFetchResponses[path] = { status, body, headers };
+  delete mockState.oauthFetchErrors[path];
+}
+
+/** Set up a mock OAuth fetch error for a path */
+export function mockOAuthFetchError(path: string, message = 'OAuth proxy error'): void {
+  mockState.oauthFetchErrors[path] = message;
+  delete mockState.oauthFetchResponses[path];
 }

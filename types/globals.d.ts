@@ -83,6 +83,22 @@ declare const data: {
   write(filename: string, content: string): void;
 };
 
+/** OAuth credential management and authenticated API proxy. */
+declare const oauth: {
+  /** Get the OAuth credential for this skill, or null if not connected. */
+  getCredential(): OAuthCredential | null;
+
+  /**
+   * Make an authenticated API request proxied through the server.
+   * Server attaches the OAuth access_token and forwards to the provider API.
+   * Path is relative to manifest's apiBaseUrl.
+   */
+  fetch(path: string, options?: OAuthFetchOptions): OAuthFetchResponse;
+
+  /** Revoke the current OAuth credential server-side. */
+  revoke(): boolean;
+};
+
 /** Local LLM inference. */
 declare const model: {
   /** Check if a local model is available for inference. */
@@ -289,3 +305,53 @@ interface SummaryEntity {
   /** Additional entity metadata. */
   metadata?: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// OAuth interfaces
+// ---------------------------------------------------------------------------
+
+interface OAuthCredential {
+  credentialId: string;
+  provider: string;
+  scopes: string[];
+  isValid: boolean;
+  createdAt: number;
+  accountLabel?: string;
+}
+
+interface OAuthFetchOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeout?: number;
+  baseUrl?: string;
+}
+
+interface OAuthFetchResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+interface OAuthCompleteArgs {
+  credentialId: string;
+  provider: string;
+  grantedScopes: string[];
+  accountLabel?: string;
+}
+
+interface OAuthCompleteResult {
+  nextStep?: SetupStep;
+}
+
+interface OAuthRevokedArgs {
+  credentialId: string;
+  reason: 'user_disconnected' | 'token_expired' | 'provider_revoked' | 'server_error';
+}
+
+// ---------------------------------------------------------------------------
+// OAuth lifecycle hooks
+// ---------------------------------------------------------------------------
+
+declare function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void;
+declare function onOAuthRevoked(args: OAuthRevokedArgs): void;

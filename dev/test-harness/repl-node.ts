@@ -1,9 +1,12 @@
 #!/usr/bin/env tsx
 /**
- * repl-node.ts - Interactive REPL for skill testing
+ * repl-node.ts - Interactive REPL for skill testing (live mode)
  *
  * Loads a compiled skill and provides an interactive prompt to call tools,
  * lifecycle hooks, walk through setup wizards, and inspect state.
+ *
+ * Uses real HTTP (via curl), persistent SQLite, and real platform APIs.
+ * For unit testing with mocked APIs, use the test harness (yarn test) instead.
  *
  * Usage:
  *   yarn repl [skill-id] [--clean]
@@ -14,18 +17,15 @@ import * as readline from 'readline/promises';
 import { existsSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { createBridgeAPIs } from './bootstrap-node';
-import {
-  getMockState,
-  initMockState,
-  mockFetchError,
-  mockFetchResponse,
-  setEnv,
-} from './mock-state';
+import { config as loadDotenv } from 'dotenv';
+import { createBridgeAPIs, getLiveState } from './bootstrap-live';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = resolve(__dirname, '../..');
+
+// Load .env from the repo root
+loadDotenv({ path: resolve(rootDir, '.env') });
 
 const c = {
   red: '\x1b[31m',
@@ -126,6 +126,8 @@ function runInContext(G: G, code: string): void {
     var db = G.db;
     var net = G.net;
     var platform = G.platform;
+    var backend = G.backend;
+    var socket = G.socket;
     var state = G.state;
     var data = G.data;
     var cron = G.cron;
@@ -222,6 +224,7 @@ function extractSkillExports(G: G): void {
 async function loadSkill(
   skillId: string,
   cleanFlag: boolean,
+  connectionOpts?: { jwtToken?: string; backendUrl?: string },
 ): Promise<{ G: G; manifest: Manifest; cleanup: () => void }> {
   const skillDir = resolve(rootDir, 'skills', skillId);
   const skillIndexPath = resolve(skillDir, 'index.js');
@@ -239,21 +242,18 @@ async function loadSkill(
     console.log(`${c.yellow}Cleaned data directory${c.reset}`);
   }
 
-  initMockState();
-
-  // Forward env vars
-  for (const key of ['TELEGRAM_BOT_TOKEN', 'TELEGRAM_PHONE_NUMBER', 'NOTION_API_KEY', 'OPENAI_API_KEY']) {
-    const val = process.env[key];
-    if (val) setEnv(key, val);
-  }
-
-  const bridgeAPIs = await createBridgeAPIs({ dataDir });
+  // Create live bridge APIs (real HTTP, persistent storage, real platform APIs)
+  const bridgeAPIs = await createBridgeAPIs({
+    dataDir,
+    jwtToken: connectionOpts?.jwtToken,
+    backendUrl: connectionOpts?.backendUrl,
+  });
 
   const G: G = { ...bridgeAPIs };
   G.globalThis = G;
   G.self = G;
   G.window = G;
-  G.__helpers = { getMockState, mockFetchResponse, mockFetchError, setEnv };
+  G.__helpers = { getLiveState };
 
   if (bridgeAPIs.WebSocket) {
     // @ts-ignore
@@ -486,11 +486,15 @@ ${c.bold}Commands:${c.reset}
   ${c.cyan}state${c.reset}                       Show published state
   ${c.cyan}store${c.reset}                       Show store contents
   ${c.cyan}db <sql>${c.reset}                    Run SQL query
-  ${c.cyan}mock fetch <url> <status> <body>${c.reset}  Mock an HTTP response
   ${c.cyan}env <key> <value>${c.reset}           Set environment variable
+  ${c.cyan}backend [path]${c.reset}              Show backend info or GET a path
+  ${c.cyan}socket${c.reset}                      Show socket.io connection status
+  ${c.cyan}emit <event> [json]${c.reset}         Emit a socket.io event
   ${c.cyan}disconnect${c.reset}                  Call onDisconnect()
   ${c.cyan}reload${c.reset}                      Reload skill (stop + re-read + init + start)
   ${c.cyan}exit${c.reset} / ${c.cyan}quit${c.reset}                  Clean exit
+
+${c.dim}Mode: live (real HTTP via curl, persistent storage, socket.io)${c.reset}
 `);
 }
 
@@ -569,7 +573,7 @@ function cmdLifecycle(G: G, hookName: string): void {
 
 function cmdCron(G: G, scheduleId: string): void {
   if (!scheduleId) {
-    const schedules = getMockState().cronSchedules;
+    const schedules = getLiveState().cronSchedules;
     const ids = Object.keys(schedules);
     if (ids.length === 0) {
       console.log(`${c.dim}No cron schedules registered${c.reset}`);
@@ -689,18 +693,17 @@ function cmdSetOption(G: G, rest: string): void {
 }
 
 function cmdState(G: G): void {
-  // Try to get state via the bridge
-  const stateApi = G.state as { get?: (key: string) => unknown } | undefined;
-  // We read from the persistent state by checking known keys — or dump mock state
-  const mockState = getMockState();
-  // If using persistent state, we can't enumerate easily, so show mock state
-  // The persistent state is synced via stateApi calls, but for display we use
-  // a more direct approach
-  if (Object.keys(mockState.state).length > 0) {
-    console.log(prettyJson(mockState.state));
+  // Try to read all state via the __getAll debug method
+  const stateApi = G.state as { __getAll?: () => Record<string, unknown> } | undefined;
+  if (stateApi?.__getAll) {
+    const data = stateApi.__getAll();
+    if (Object.keys(data).length === 0) {
+      console.log(`${c.dim}(state is empty)${c.reset}`);
+    } else {
+      console.log(prettyJson(data));
+    }
   } else {
-    // Try calling stateApi.get with some common keys, or just note it's empty
-    console.log(`${c.dim}(state is empty or using persistent storage — use state.get(key) in the skill)${c.reset}`);
+    console.log(`${c.dim}(state inspection not available)${c.reset}`);
   }
 }
 
@@ -763,26 +766,6 @@ function cmdDb(G: G, sql: string): void {
   }
 }
 
-function cmdMockFetch(rest: string): void {
-  // Parse: <url> <status> <body>
-  const parts = rest.split(/\s+/);
-  if (parts.length < 3) {
-    console.log(`${c.red}Usage: mock fetch <url> <status> <body>${c.reset}`);
-    return;
-  }
-  const url = parts[0];
-  const status = parseInt(parts[1], 10);
-  const body = parts.slice(2).join(' ');
-
-  if (isNaN(status)) {
-    console.log(`${c.red}Status must be a number${c.reset}`);
-    return;
-  }
-
-  mockFetchResponse(url, status, body);
-  console.log(`${c.green}Mocked: ${url} -> ${status}${c.reset}`);
-}
-
 function cmdEnv(rest: string): void {
   const spaceIdx = rest.indexOf(' ');
   if (spaceIdx === -1) {
@@ -791,15 +774,116 @@ function cmdEnv(rest: string): void {
   }
   const key = rest.substring(0, spaceIdx);
   const value = rest.substring(spaceIdx + 1).trim();
-  setEnv(key, value);
+  process.env[key] = value;
   console.log(`${c.green}Set env ${key}${c.reset}`);
+}
+
+// ─── Backend / Socket Commands ─────────────────────────────────────
+
+function cmdBackend(G: G, path: string): void {
+  const backendApi = G.backend as {
+    url?: string;
+    token?: string;
+    fetch?: (path: string, opts?: unknown) => { status: number; headers: Record<string, string>; body: string };
+  } | undefined;
+
+  if (!backendApi) {
+    console.log(`${c.yellow}Backend API not available${c.reset}`);
+    return;
+  }
+
+  if (!path) {
+    console.log(`${c.bold}Backend:${c.reset}`);
+    console.log(`  ${c.cyan}URL${c.reset}: ${backendApi.url}`);
+    console.log(`  ${c.cyan}Token${c.reset}: ${backendApi.token ? backendApi.token.substring(0, 20) + '...' : '(none)'}`);
+    console.log(`\n${c.dim}Usage: backend <path> — e.g. backend /api/health${c.reset}`);
+    return;
+  }
+
+  try {
+    const result = backendApi.fetch!(path);
+    console.log(`${c.green}${result.status}${c.reset}`);
+    try {
+      const parsed = JSON.parse(result.body);
+      console.log(prettyJson(parsed));
+    } catch {
+      console.log(result.body);
+    }
+  } catch (e) {
+    console.log(`${c.red}Backend error: ${e}${c.reset}`);
+  }
+}
+
+function cmdSocket(G: G): void {
+  const socketApi = G.socket as {
+    connected?: () => boolean;
+    id?: () => string | undefined;
+  } | undefined;
+
+  if (!socketApi) {
+    console.log(`${c.yellow}Socket API not available${c.reset}`);
+    return;
+  }
+
+  const connected = socketApi.connected?.() ?? false;
+  const id = socketApi.id?.();
+  console.log(`${c.bold}Socket.io:${c.reset}`);
+  console.log(`  ${c.cyan}Status${c.reset}: ${connected ? `${c.green}connected${c.reset}` : `${c.red}disconnected${c.reset}`}`);
+  if (id) console.log(`  ${c.cyan}ID${c.reset}: ${id}`);
+}
+
+function cmdEmit(G: G, rest: string): void {
+  const socketApi = G.socket as {
+    connected?: () => boolean;
+    emit?: (event: string, ...args: unknown[]) => void;
+  } | undefined;
+
+  if (!socketApi?.emit) {
+    console.log(`${c.yellow}Socket API not available${c.reset}`);
+    return;
+  }
+
+  if (!socketApi.connected?.()) {
+    console.log(`${c.red}Socket not connected${c.reset}`);
+    return;
+  }
+
+  const spaceIdx = rest.indexOf(' ');
+  const event = spaceIdx === -1 ? rest : rest.substring(0, spaceIdx);
+  const jsonStr = spaceIdx === -1 ? '' : rest.substring(spaceIdx + 1).trim();
+
+  if (!event) {
+    console.log(`${c.red}Usage: emit <event> [json-data]${c.reset}`);
+    return;
+  }
+
+  let data: unknown;
+  if (jsonStr) {
+    try {
+      data = JSON.parse(jsonStr);
+    } catch (e) {
+      console.log(`${c.red}Invalid JSON: ${e}${c.reset}`);
+      return;
+    }
+  }
+
+  try {
+    if (data !== undefined) {
+      socketApi.emit(event, data);
+    } else {
+      socketApi.emit(event);
+    }
+    console.log(`${c.green}Emitted "${event}"${c.reset}`);
+  } catch (e) {
+    console.log(`${c.red}Emit error: ${e}${c.reset}`);
+  }
 }
 
 // ─── Main ──────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   console.log(`${c.cyan}${c.bold}═══════════════════════════════════════════════════════════════${c.reset}`);
-  console.log(`${c.cyan}${c.bold}                 Skill REPL (Interactive)                       ${c.reset}`);
+  console.log(`${c.cyan}${c.bold}            Skill REPL (Interactive · Live Mode)                ${c.reset}`);
   console.log(`${c.cyan}${c.bold}═══════════════════════════════════════════════════════════════${c.reset}`);
 
   const rl = readline.createInterface({
@@ -855,11 +939,36 @@ async function main(): Promise<void> {
     }
   }
 
+  // ─── Backend Connection ─────────────────────────────────────────
+  const defaultBackendUrl = process.env.BACKEND_URL || process.env.VITE_BACKEND_URL || 'https://api.alphahuman.xyz';
+  const defaultJwtToken = process.env.JWT_TOKEN || process.env.VITE_DEV_JWT_TOKEN || '';
+
+  console.log(`\n${c.bold}Backend Connection${c.reset}`);
+  console.log(`${c.dim}${'─'.repeat(50)}${c.reset}`);
+
+  const backendUrlInput = await rl.question(
+    `  ${c.cyan}Backend URL${c.reset} ${c.dim}(${defaultBackendUrl})${c.reset}: `,
+  );
+  const backendUrl = backendUrlInput.trim() || defaultBackendUrl;
+
+  const jwtInput = await rl.question(
+    `  ${c.cyan}JWT Token${c.reset}${defaultJwtToken ? ` ${c.dim}(from env)${c.reset}` : ''}: `,
+  );
+  const jwtToken = jwtInput.trim() || defaultJwtToken;
+
+  if (jwtToken) {
+    console.log(`${c.green}JWT token set${c.reset} ${c.dim}(${jwtToken.substring(0, 20)}...)${c.reset}`);
+  } else {
+    console.log(`${c.yellow}No JWT token — backend/socket APIs will be unauthenticated${c.reset}`);
+  }
+  console.log(`${c.dim}Backend: ${backendUrl}${c.reset}`);
+
   // Load the skill
   console.log(`\n${c.dim}Loading ${skillId}...${c.reset}`);
+  console.log(`${c.dim}Mode: live (real HTTP via curl, persistent storage, socket.io)${c.reset}`);
   let ctx: { G: G; manifest: Manifest; cleanup: () => void };
   try {
-    ctx = await loadSkill(skillId, cleanFlag);
+    ctx = await loadSkill(skillId, cleanFlag, { jwtToken, backendUrl });
   } catch (e) {
     console.log(`${c.red}${e}${c.reset}`);
     rl.close();
@@ -984,16 +1093,20 @@ async function main(): Promise<void> {
           cmdDb(ctx.G, rest);
           break;
 
-        case 'mock':
-          if (rest.startsWith('fetch ')) {
-            cmdMockFetch(rest.substring(6).trim());
-          } else {
-            console.log(`${c.red}Usage: mock fetch <url> <status> <body>${c.reset}`);
-          }
-          break;
-
         case 'env':
           cmdEnv(rest);
+          break;
+
+        case 'backend':
+          cmdBackend(ctx.G, rest);
+          break;
+
+        case 'socket':
+          cmdSocket(ctx.G);
+          break;
+
+        case 'emit':
+          cmdEmit(ctx.G, rest);
           break;
 
         case 'disconnect':
@@ -1010,7 +1123,7 @@ async function main(): Promise<void> {
 
           // Re-load
           try {
-            ctx = await loadSkill(skillId!, false);
+            ctx = await loadSkill(skillId!, false, { jwtToken, backendUrl });
             const newToolCount = getTools(ctx.G).length;
             console.log(`${c.green}Reloaded${c.reset} ${c.bold}${ctx.manifest.name}${c.reset} v${ctx.manifest.version}`);
             if (newToolCount > 0) console.log(`${c.dim}  ${newToolCount} tools available${c.reset}`);

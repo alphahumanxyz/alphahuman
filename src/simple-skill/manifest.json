@@ -4,6 +4,7 @@
   "runtime": "quickjs",
   "entry": "index.js",
   "version": "1.0.0",
+  "ignoreInProduction": true,
   "description": "A simple skill for testing the harness",
   "platforms": ["windows", "macos", "linux"]
 }

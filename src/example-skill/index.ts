@@ -4,17 +4,126 @@
  *
  * Use this as a reference when building your own skill.
  */
-
 // ─── State & Types ───────────────────────────────────────────────────
 import { getState } from './skill-state';
-import type { ExampleConfig } from './types';
-import { DEFAULT_CONFIG } from './types';
-import { getStatusTool, fetchDataTool, queryLogsTool, listPeersTool } from './tools/index';
+import { DEFAULT_CONFIG, type ExampleConfig } from './types';
 
 // ─── Tools ───────────────────────────────────────────────────────────
 // Tools are exposed to the AI and other skills.
 // Each tool.execute() must return a JSON string.
-tools = [getStatusTool, fetchDataTool, queryLogsTool, listPeersTool];
+// NOTE: Tools are defined inline to avoid cross-module bundling issues.
+
+tools = [
+  // get-status — returns current skill status, config summary, and error count
+  {
+    name: 'get-status',
+    description: 'Get current skill status including configuration summary and error count.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        verbose: {
+          type: 'string',
+          enum: ['true', 'false'],
+          description: 'Include full config in response (default: false)',
+        },
+      },
+    },
+    execute(args: Record<string, unknown>): string {
+      const s = getState();
+      const verbose = args.verbose === 'true';
+
+      const result: Record<string, unknown> = {
+        status: s.isRunning ? 'running' : 'stopped',
+        fetchCount: s.fetchCount,
+        errorCount: s.errorCount,
+        lastFetchTime: s.lastFetchTime,
+        refreshInterval: s.config.refreshInterval,
+        platform: platform.os(),
+      };
+
+      if (verbose)
+        result.config = {
+          serverUrl: s.config.serverUrl,
+          refreshInterval: s.config.refreshInterval,
+          notifyOnError: s.config.notifyOnError,
+          verbose: s.config.verbose,
+        };
+
+      return JSON.stringify(result);
+    },
+  },
+
+  // fetch-data — makes an HTTP request to the configured server URL
+  {
+    name: 'fetch-data',
+    description: 'Fetch data from the configured server URL. Returns the response status and body.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        endpoint: {
+          type: 'string',
+          description: 'Optional path to append to the server URL (e.g., "/health")',
+        },
+      },
+    },
+    execute(args: Record<string, unknown>): string {
+      const s = getState();
+      const endpoint = (args.endpoint as string) || '';
+      const url = s.config.serverUrl + endpoint;
+
+      if (!s.config.serverUrl) return JSON.stringify({ error: 'Server URL not configured' });
+
+      try {
+        const response = net.fetch(url, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${s.config.apiKey}`, 'Content-Type': 'application/json' },
+          timeout: 10000,
+        });
+
+        s.fetchCount++;
+        s.lastFetchTime = new Date().toISOString();
+
+        return JSON.stringify({ status: response.status, body: response.body });
+      } catch (e) {
+        s.errorCount++;
+        return JSON.stringify({ error: String(e) });
+      }
+    },
+  },
+
+  // query-logs — query the SQLite logs table with limit
+  {
+    name: 'query-logs',
+    description: 'Query recent log entries from the skill database.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'Maximum number of rows to return (default: 10)',
+          minimum: 1,
+          maximum: 100,
+        },
+      },
+    },
+    execute(args: Record<string, unknown>): string {
+      const limit = typeof args.limit === 'number' ? args.limit : 10;
+      const rows = db.all(`SELECT * FROM logs ORDER BY id DESC LIMIT ${limit}`, []);
+      return JSON.stringify({ count: rows.length, rows });
+    },
+  },
+
+  // list-peers — discover other skills via skills.list()
+  {
+    name: 'list-peers',
+    description: 'List all registered skills in the runtime.',
+    input_schema: { type: 'object', properties: {} },
+    execute(_args: Record<string, unknown>): string {
+      const peers = skills.list();
+      return JSON.stringify({ count: peers.length, skills: peers });
+    },
+  },
+];
 
 // ─── Lifecycle: init() ──────────────────────────────────────────────
 // Called once when the skill is first loaded.
@@ -30,7 +139,7 @@ function init(): void {
       message TEXT NOT NULL,
       created_at TEXT NOT NULL
     )`,
-    [],
+    []
   );
 
   // Load persisted configuration from store
@@ -75,15 +184,17 @@ function stop(): void {
   store.set('config', s.config);
 
   // Persist a data file with last-known state
-  data.write('last-state.json', JSON.stringify({
-    fetchCount: s.fetchCount,
-    errorCount: s.errorCount,
-    lastFetchTime: s.lastFetchTime,
-    stoppedAt: new Date().toISOString(),
-  }));
+  data.write(
+    'last-state.json',
+    JSON.stringify({
+      fetchCount: s.fetchCount,
+      errorCount: s.errorCount,
+      lastFetchTime: s.lastFetchTime,
+      stoppedAt: new Date().toISOString(),
+    })
+  );
 
-  if (s.config.verbose)
-    console.log('[example-skill] Stopped');
+  if (s.config.verbose) console.log('[example-skill] Stopped');
 }
 
 // ─── Lifecycle: onCronTrigger ───────────────────────────────────────
@@ -97,10 +208,7 @@ function onCronTrigger(scheduleId: string): void {
   try {
     const response = net.fetch(s.config.serverUrl, {
       method: 'GET',
-      headers: {
-        Authorization: `Bearer ${s.config.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${s.config.apiKey}`, 'Content-Type': 'application/json' },
       timeout: 10000,
     });
 
@@ -108,20 +216,22 @@ function onCronTrigger(scheduleId: string): void {
     s.lastFetchTime = new Date().toISOString();
 
     // Log to database
-    db.exec(
-      'INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)',
-      ['info', `Fetch OK: status=${response.status}`, s.lastFetchTime],
-    );
+    db.exec('INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)', [
+      'info',
+      `Fetch OK: status=${response.status}`,
+      s.lastFetchTime,
+    ]);
 
     // Reset error count on success
     s.errorCount = 0;
   } catch (e) {
     s.errorCount++;
 
-    db.exec(
-      'INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)',
-      ['error', `Fetch failed: ${String(e)}`, new Date().toISOString()],
-    );
+    db.exec('INSERT INTO logs (level, message, created_at) VALUES (?, ?, ?)', [
+      'error',
+      `Fetch failed: ${String(e)}`,
+      new Date().toISOString(),
+    ]);
 
     // Send notification if configured
     if (s.config.notifyOnError)
@@ -136,14 +246,12 @@ function onCronTrigger(scheduleId: string): void {
 // Called when the user starts or ends an AI conversation.
 function onSessionStart(_args: { sessionId: string }): void {
   const s = getState();
-  if (s.config.verbose)
-    console.log('[example-skill] Session started');
+  if (s.config.verbose) console.log('[example-skill] Session started');
 }
 
 function onSessionEnd(_args: { sessionId: string }): void {
   const s = getState();
-  if (s.config.verbose)
-    console.log('[example-skill] Session ended');
+  if (s.config.verbose) console.log('[example-skill] Session ended');
 }
 
 // ─── Setup Flow (3-step wizard) ─────────────────────────────────────
@@ -188,7 +296,10 @@ function onSetupSubmit(args: {
     const apiKey = args.values.apiKey as string;
 
     if (!serverUrl)
-      return { status: 'error', errors: [{ field: 'serverUrl', message: 'Server URL is required' }] };
+      return {
+        status: 'error',
+        errors: [{ field: 'serverUrl', message: 'Server URL is required' }],
+      };
     if (!apiKey)
       return { status: 'error', errors: [{ field: 'apiKey', message: 'API key is required' }] };
 

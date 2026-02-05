@@ -2,7 +2,6 @@
  * Comprehensive tests for example-skill.
  * Covers all lifecycle hooks, setup flow, options, tools, and error handling.
  */
-
 import type { ExampleConfig } from '../types';
 
 const DEFAULT_CONFIG: ExampleConfig = {
@@ -20,9 +19,7 @@ function freshInit(overrides?: Partial<ExampleConfig>): void {
   const config = { ...DEFAULT_CONFIG, ...overrides };
   setupSkillTest({
     storeData: overrides ? { config } : {},
-    fetchResponses: {
-      [MOCK_URL]: { status: 200, body: '{"ok":true}' },
-    },
+    fetchResponses: { [MOCK_URL]: { status: 200, body: '{"ok":true}' } },
   });
   init();
 }

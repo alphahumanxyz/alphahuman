@@ -4,8 +4,7 @@
  * This pattern ensures state is accessible from both lifecycle hooks
  * and tool execute() functions, in production QuickJS and in the test harness.
  */
-import type { ExampleConfig } from './types';
-import { DEFAULT_CONFIG } from './types';
+import { DEFAULT_CONFIG, type ExampleConfig } from './types';
 
 export interface ExampleSkillState {
   config: ExampleConfig;

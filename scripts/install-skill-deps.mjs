@@ -1,11 +1,8 @@
 #!/usr/bin/env node
-/**
- * install-skill-deps.mjs - Install per-skill npm dependencies
- *
- * Iterates src/*/package.json and runs `yarn install` in each skill
- * directory that has one. esbuild resolves node_modules relative to
- * entry points, so bundling works automatically.
- */
+// install-skill-deps.mjs - Install per-skill npm dependencies
+// Iterates skill directories and runs yarn install in each one
+// that has its own dependencies. esbuild resolves node_modules
+// relative to entry points, so bundling works automatically.
 import { existsSync, readdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';

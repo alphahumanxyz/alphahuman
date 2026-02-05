@@ -1,13 +1,12 @@
 // Import all tools
+// Import to initialize state
+import { getSkillState } from './skill-state';
 import { getPingHistoryTool } from './tools/get-ping-history';
 import { getPingStatsTool } from './tools/get-ping-stats';
 import { listPeerSkillsTool } from './tools/list-peer-skills';
 import { pingNowTool } from './tools/ping-now';
 import { readConfigTool } from './tools/read-config';
 import { updateServerUrlTool } from './tools/update-server-url';
-
-// Import to initialize state
-import { getSkillState } from './skill-state';
 import type { SkillConfig } from './types';
 
 // server-ping/index.ts
@@ -77,7 +76,9 @@ function start(): void {
   }
 
   const intervalMs = s.config.pingIntervalSec * 1000;
-  console.log(`[server-ping] Starting — ping every ${s.config.pingIntervalSec}s (using setInterval)`);
+  console.log(
+    `[server-ping] Starting — ping every ${s.config.pingIntervalSec}s (using setInterval)`
+  );
 
   // Clear any existing interval
   if (s.pingIntervalId !== null) {
@@ -107,10 +108,7 @@ function stop(): void {
   }
 
   // Persist counters
-  store.set('counters', {
-    pingCount: s.pingCount,
-    failCount: s.failCount,
-  });
+  store.set('counters', { pingCount: s.pingCount, failCount: s.failCount });
 
   state.set('status', 'stopped');
 }
@@ -397,10 +395,7 @@ function doPing(): void {
 
   // Persist counters periodically (every 10 pings)
   if (s.pingCount % 10 === 0) {
-    store.set('counters', {
-      pingCount: s.pingCount,
-      failCount: s.failCount,
-    });
+    store.set('counters', { pingCount: s.pingCount, failCount: s.failCount });
   }
 
   // Publish state to frontend
@@ -418,9 +413,7 @@ function publishState(): void {
   const s = getSkillState();
 
   const uptimePct =
-    s.pingCount > 0
-      ? Math.round(((s.pingCount - s.failCount) / s.pingCount) * 10000) / 100
-      : 100;
+    s.pingCount > 0 ? Math.round(((s.pingCount - s.failCount) / s.pingCount) * 10000) / 100 : 100;
 
   // Get latest latency from DB
   const latest = db.get(

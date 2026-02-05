@@ -1,6 +1,5 @@
 // Tool: ping-now
 // Trigger an immediate ping to the configured server and return the result.
-
 import { getSkillState } from '../skill-state';
 
 export const pingNowTool: ToolDefinition = {
@@ -15,10 +14,6 @@ export const pingNowTool: ToolDefinition = {
       'SELECT timestamp, status, latency_ms, success, error FROM ping_log ORDER BY id DESC LIMIT 1',
       []
     );
-    return JSON.stringify({
-      triggered: true,
-      pingNumber: s.pingCount,
-      result: latest,
-    });
+    return JSON.stringify({ triggered: true, pingNumber: s.pingCount, result: latest });
   },
 };

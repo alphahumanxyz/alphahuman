@@ -1,6 +1,5 @@
 // Tool: get-ping-stats
 // Get current ping statistics including uptime, total pings, failures, and latest latency.
-
 import { getSkillState } from '../skill-state';
 
 export const getPingStatsTool: ToolDefinition = {
@@ -12,9 +11,7 @@ export const getPingStatsTool: ToolDefinition = {
     const s = getSkillState();
 
     const uptimePct =
-      s.pingCount > 0
-        ? Math.round(((s.pingCount - s.failCount) / s.pingCount) * 10000) / 100
-        : 100;
+      s.pingCount > 0 ? Math.round(((s.pingCount - s.failCount) / s.pingCount) * 10000) / 100 : 100;
 
     const latest = db.get(
       'SELECT latency_ms, status, timestamp FROM ping_log ORDER BY id DESC LIMIT 1',

@@ -128,9 +128,7 @@ If your skill needs npm packages, create a `package.json` in your skill director
 {
   "name": "@alphahuman/skill-my-skill",
   "private": true,
-  "dependencies": {
-    "some-library": "^1.0.0"
-  }
+  "dependencies": { "some-library": "^1.0.0" }
 }
 ```
 

@@ -18,26 +18,19 @@ export const fetchDataTool: ToolDefinition = {
     const endpoint = (args.endpoint as string) || '';
     const url = s.config.serverUrl + endpoint;
 
-    if (!s.config.serverUrl)
-      return JSON.stringify({ error: 'Server URL not configured' });
+    if (!s.config.serverUrl) return JSON.stringify({ error: 'Server URL not configured' });
 
     try {
       const response = net.fetch(url, {
         method: 'GET',
-        headers: {
-          Authorization: `Bearer ${s.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { Authorization: `Bearer ${s.config.apiKey}`, 'Content-Type': 'application/json' },
         timeout: 10000,
       });
 
       s.fetchCount++;
       s.lastFetchTime = new Date().toISOString();
 
-      return JSON.stringify({
-        status: response.status,
-        body: response.body,
-      });
+      return JSON.stringify({ status: response.status, body: response.body });
     } catch (e) {
       s.errorCount++;
       return JSON.stringify({ error: String(e) });

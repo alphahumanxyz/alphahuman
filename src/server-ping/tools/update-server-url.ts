@@ -1,6 +1,5 @@
 // Tool: update-server-url
 // Change the monitored server URL at runtime.
-
 import { getSkillState } from '../skill-state';
 
 export const updateServerUrlTool: ToolDefinition = {

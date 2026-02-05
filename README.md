@@ -412,9 +412,7 @@ Skills can declare their own npm dependencies via a `package.json` in their dire
 {
   "name": "@alphahuman/skill-my-skill",
   "private": true,
-  "dependencies": {
-    "some-library": "^1.0.0"
-  }
+  "dependencies": { "some-library": "^1.0.0" }
 }
 ```
 

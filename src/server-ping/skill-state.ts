@@ -1,7 +1,6 @@
 // Shared skill state module
 // Tools and lifecycle functions access state through globalThis.getSkillState()
 // This pattern works in both production QuickJS runtime and test harness sandbox.
-
 import type { SkillConfig } from './types';
 
 /**

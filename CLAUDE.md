@@ -398,9 +398,7 @@ npx tsc -p tsconfig.test.json
 {
   "name": "@alphahuman/skill-my-skill",
   "private": true,
-  "dependencies": {
-    "some-library": "^1.0.0"
-  }
+  "dependencies": { "some-library": "^1.0.0" }
 }
 ```
 
@@ -481,7 +479,7 @@ const state: MySkillState = {
 globalThis.__skillState = state;
 
 // Expose getter function globally
-globalThis.getSkillState = function(): MySkillState {
+globalThis.getSkillState = function (): MySkillState {
   return globalThis.__skillState;
 };
 ```
@@ -490,7 +488,9 @@ globalThis.getSkillState = function(): MySkillState {
 
 ```typescript
 // In index.ts
-import './skill-state'; // Initializes state
+import './skill-state';
+
+// Initializes state
 
 function init(): void {
   const s = globalThis.getSkillState();
@@ -509,7 +509,9 @@ function doPing(): void {
 
 ```typescript
 // In tools/get-stats.ts
-import '../skill-state'; // Ensures initialization
+import '../skill-state';
+
+// Ensures initialization
 
 export const getStatsTool: ToolDefinition = {
   name: 'get-stats',
@@ -533,6 +535,7 @@ _g.publishState = publishState;
 ```
 
 **Why this pattern?**
+
 - Bundled skills use esbuild IIFE format, which creates module-local scopes
 - The test harness uses `new Function()` which has its own scope limitations
 - Accessing state via `globalThis.getSkillState()` works in both environments

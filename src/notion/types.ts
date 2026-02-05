@@ -14,9 +14,16 @@ export interface NotionGlobals {
   buildParagraphBlock(text: string): Record<string, unknown>;
 }
 
-// Access helpers on globalThis (call inside execute(), not at module scope)
-// NOTE: This is NOT exported — it's placed on globalThis by index.ts so
-// esbuild's __esm wrappers don't break cross-module references.
+// Access helpers at runtime (call inside execute(), not at module scope).
+// In the production QuickJS runtime, helpers are on globalThis.
+// In esbuild IIFE bundles, helpers end up on the shared `exports` object
+// due to CommonJS interop (__esm wrappers write to the outer exports shim).
+// This function checks both locations.
 export function n(): NotionGlobals {
+  const g = globalThis as unknown as Record<string, unknown>;
+  // When bundled with esbuild, helpers are on the 'exports' shim object
+  if (g.exports && typeof (g.exports as Record<string, unknown>).notionFetch === 'function') {
+    return g.exports as unknown as NotionGlobals;
+  }
   return globalThis as unknown as NotionGlobals;
 }

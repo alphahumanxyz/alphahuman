@@ -6,17 +6,17 @@ const NOTION_VERSION = '2025-09-03';
 // Notion API helpers
 // ---------------------------------------------------------------------------
 
-export function notionFetch(endpoint: string, options: { method?: string; body?: unknown } = {}): unknown {
+export function notionFetch(
+  endpoint: string,
+  options: { method?: string; body?: unknown } = {}
+): unknown {
   if (!oauth.getCredential()) {
     throw new Error('Notion not connected. Please complete setup first.');
   }
 
-  const response = oauth.fetch(endpoint, {
+  const response = oauth.fetch(`/v1${endpoint}`, {
     method: options.method || 'GET',
-    headers: {
-      'Notion-Version': NOTION_VERSION,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: options.body ? JSON.stringify(options.body) : undefined,
     timeout: 30,
   });

@@ -2,7 +2,13 @@
 
 import type { NotionGlobals } from '../types';
 
-const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
+const n = (): NotionGlobals => {
+  const g = globalThis as unknown as Record<string, unknown>;
+  if (g.exports && typeof (g.exports as Record<string, unknown>).notionFetch === 'function') {
+    return g.exports as unknown as NotionGlobals;
+  }
+  return globalThis as unknown as NotionGlobals;
+};
 
 export const getBlockTool: ToolDefinition = {
   name: 'notion-get-block',

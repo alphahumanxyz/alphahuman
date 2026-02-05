@@ -1,6 +1,8 @@
 // Tool: notion-delete-page
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const deletePageTool: ToolDefinition = {
   name: 'notion-delete-page',

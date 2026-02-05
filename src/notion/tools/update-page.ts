@@ -1,6 +1,8 @@
 // Tool: notion-update-page
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const updatePageTool: ToolDefinition = {
   name: 'notion-update-page',

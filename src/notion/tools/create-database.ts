@@ -1,6 +1,8 @@
 // Tool: notion-create-database
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const createDatabaseTool: ToolDefinition = {
   name: 'notion-create-database',

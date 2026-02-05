@@ -15,6 +15,8 @@ export interface NotionGlobals {
 }
 
 // Access helpers on globalThis (call inside execute(), not at module scope)
+// NOTE: This is NOT exported — it's placed on globalThis by index.ts so
+// esbuild's __esm wrappers don't break cross-module references.
 export function n(): NotionGlobals {
   return globalThis as unknown as NotionGlobals;
 }

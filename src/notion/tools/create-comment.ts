@@ -1,6 +1,8 @@
 // Tool: notion-create-comment
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const createCommentTool: ToolDefinition = {
   name: 'notion-create-comment',

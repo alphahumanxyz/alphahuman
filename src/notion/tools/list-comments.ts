@@ -1,6 +1,8 @@
 // Tool: notion-list-comments
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const listCommentsTool: ToolDefinition = {
   name: 'notion-list-comments',

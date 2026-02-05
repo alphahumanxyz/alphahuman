@@ -1,6 +1,8 @@
 // Tool: notion-update-block
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const updateBlockTool: ToolDefinition = {
   name: 'notion-update-block',

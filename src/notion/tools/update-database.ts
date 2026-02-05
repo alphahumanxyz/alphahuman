@@ -1,6 +1,8 @@
 // Tool: notion-update-database
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const updateDatabaseTool: ToolDefinition = {
   name: 'notion-update-database',

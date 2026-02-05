@@ -1,6 +1,8 @@
 // Tool: notion-list-users
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const listUsersTool: ToolDefinition = {
   name: 'notion-list-users',

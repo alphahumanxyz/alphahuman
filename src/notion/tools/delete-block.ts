@@ -1,6 +1,8 @@
 // Tool: notion-delete-block
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const deleteBlockTool: ToolDefinition = {
   name: 'notion-delete-block',

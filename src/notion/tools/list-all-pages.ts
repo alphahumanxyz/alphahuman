@@ -1,6 +1,8 @@
 // Tool: notion-list-all-pages
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const listAllPagesTool: ToolDefinition = {
   name: 'notion-list-all-pages',

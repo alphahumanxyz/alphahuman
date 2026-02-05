@@ -1,6 +1,8 @@
 // Tool: notion-get-user
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const getUserTool: ToolDefinition = {
   name: 'notion-get-user',

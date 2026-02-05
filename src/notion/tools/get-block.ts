@@ -1,6 +1,8 @@
 // Tool: notion-get-block
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const getBlockTool: ToolDefinition = {
   name: 'notion-get-block',

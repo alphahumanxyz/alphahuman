@@ -1,6 +1,8 @@
 // Tool: notion-get-page
 
-import { n } from '../types';
+import type { NotionGlobals } from '../types';
+
+const n = (): NotionGlobals => globalThis as unknown as NotionGlobals;
 
 export const getPageTool: ToolDefinition = {
   name: 'notion-get-page',

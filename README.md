@@ -73,6 +73,21 @@ yarn typecheck
 yarn build:watch
 ```
 
+### Interactive REPL
+
+```bash
+# Pick a skill from a list
+yarn repl
+
+# Load a specific skill directly
+yarn repl server-ping
+
+# Wipe persisted data and start fresh
+yarn repl example-skill --clean
+```
+
+See [Testing & Development](#testing--development) below for full REPL documentation.
+
 ### Run tests
 
 ```bash

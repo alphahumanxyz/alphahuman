@@ -277,6 +277,7 @@ async function runOAuthFlow(
   manifest: Manifest,
   rl: readline.Interface,
   backendUrl: string,
+  jwtToken: string,
 ): Promise<void> {
   const oauthConfig = manifest.setup?.oauth;
   if (!oauthConfig) {
@@ -290,23 +291,46 @@ async function runOAuthFlow(
   console.log(`  ${c.cyan}Scopes${c.reset}: ${oauthConfig.scopes.join(', ') || '(default)'}`);
   console.log(`  ${c.cyan}API Base${c.reset}: ${oauthConfig.apiBaseUrl}`);
 
-  // Construct the OAuth redirect URL
-  const params = new URLSearchParams({
-    provider: oauthConfig.provider,
-    skillId: manifest.id,
-  });
-  if (oauthConfig.scopes.length > 0) {
-    params.set('scopes', oauthConfig.scopes.join(','));
+  if (!jwtToken) {
+    console.log(`\n${c.red}No JWT token set. Cannot initiate OAuth flow.${c.reset}`);
+    console.log(`${c.dim}Restart the REPL and provide a JWT token to use OAuth.${c.reset}`);
+    return;
   }
-  const oauthUrl = `${backendUrl}/oauth/start?${params.toString()}`;
+
+  // Call backend to get the real OAuth URL
+  // GET /auth/:provider/connect (requires JWT auth)
+  let oauthUrl: string;
+  try {
+    console.log(`\n${c.dim}Requesting OAuth URL from backend...${c.reset}`);
+    const connectUrl = `${backendUrl}/auth/${oauthConfig.provider}/connect`;
+    console.log(`[connectUrl] ${connectUrl}`);
+    const resp = await globalThis.fetch(connectUrl, {
+      headers: { Authorization: `Bearer ${jwtToken}` },
+    });
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      console.log(`${c.red}Backend error (${resp.status}): ${errBody}${c.reset}`);
+      return;
+    }
+    const data = (await resp.json()) as { success?: boolean; oauthUrl?: string; state?: string };
+    if (!data.oauthUrl) {
+      console.log(`${c.red}Backend did not return an oauthUrl: ${JSON.stringify(data)}${c.reset}`);
+      return;
+    }
+    oauthUrl = data.oauthUrl;
+  } catch (e) {
+    console.log(`${c.red}Failed to call backend: ${e}${c.reset}`);
+    return;
+  }
 
   console.log(`\n${c.bold}Open this URL in your browser to authorize:${c.reset}`);
   console.log(`  ${c.cyan}${oauthUrl}${c.reset}\n`);
-  console.log(`${c.dim}After completing authorization, paste the credential ID below.${c.reset}`);
+  console.log(`${c.dim}After completing authorization, copy the ${c.bold}integrationId${c.reset}${c.dim} from the redirect URL and paste it below.${c.reset}`);
+  console.log(`${c.dim}(The redirect URL looks like: .../#auth/${oauthConfig.provider}/success?integrationId=<ID>)${c.reset}\n`);
 
-  const credentialId = await rl.question(`${c.cyan}Credential ID:${c.reset} `);
+  const credentialId = await rl.question(`${c.cyan}Integration ID:${c.reset} `);
   if (!credentialId.trim()) {
-    console.log(`${c.yellow}OAuth setup cancelled (no credential ID provided)${c.reset}`);
+    console.log(`${c.yellow}OAuth setup cancelled (no integration ID provided)${c.reset}`);
     return;
   }
 
@@ -1018,7 +1042,7 @@ async function main(): Promise<void> {
         console.log(`\n${c.yellow}OAuth setup required but no config found.${c.reset}`);
         const answer = await rl.question(`${c.cyan}Run OAuth flow? [Y/n]:${c.reset} `);
         if (answer === '' || answer.toLowerCase().startsWith('y')) {
-          await runOAuthFlow(ctx.G, ctx.manifest, rl, backendUrl);
+          await runOAuthFlow(ctx.G, ctx.manifest, rl, backendUrl, jwtToken);
         }
       } else if (typeof ctx.G.onSetupStart === 'function') {
         // Traditional form-based setup wizard
@@ -1092,7 +1116,7 @@ async function main(): Promise<void> {
           break;
 
         case 'oauth':
-          await runOAuthFlow(ctx.G, ctx.manifest, rl, backendUrl);
+          await runOAuthFlow(ctx.G, ctx.manifest, rl, backendUrl, jwtToken);
           break;
 
         case 'options':

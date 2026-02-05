@@ -477,6 +477,10 @@ export async function createBridgeAPIs(
   };
 
   // OAuth — credential management and authenticated API proxy
+  // Backend endpoints used:
+  //   GET  /auth/:provider/connect        → { oauthUrl, state }
+  //   ALL  /proxy/by-id/:integrationId/*  → proxied API call
+  //   DELETE /auth/integrations/:id        → revoke integration
   const oauth = {
     getCredential: (): unknown => oauthCredential,
     fetch: (
@@ -496,40 +500,37 @@ export async function createBridgeAPIs(
           body: JSON.stringify({ error: 'No OAuth credential. Complete OAuth setup first.' }),
         };
       }
-      const proxyPayload = JSON.stringify({
-        credentialId: oauthCredential.credentialId,
-        path,
-        method: fetchOpts?.method || 'GET',
-        headers: fetchOpts?.headers,
-        body: fetchOpts?.body,
-        baseUrl: fetchOpts?.baseUrl,
-      });
-      globalThis.console.log(
-        `[oauth.fetch] ${fetchOpts?.method ?? 'GET'} ${path}`,
-      );
-      return realFetch(`${backendUrl}/api/oauth/fetch`, {
-        method: 'POST',
+      // Proxy through backend: /proxy/by-id/:integrationId/:path
+      // The backend looks up the stored OAuth token and forwards with Authorization header.
+      const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+      const proxyUrl = `${backendUrl}/proxy/by-id/${oauthCredential.credentialId}/${cleanPath}`;
+      const method = fetchOpts?.method || 'GET';
+      globalThis.console.log(`[oauth.fetch] ${method} ${path}`);
+      return realFetch(proxyUrl, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           ...(jwtToken ? { Authorization: `Bearer ${jwtToken}` } : {}),
+          ...(fetchOpts?.headers ?? {}),
         },
-        body: proxyPayload,
+        body: fetchOpts?.body,
         timeout: fetchOpts?.timeout ? fetchOpts.timeout * 1000 : 30000,
       });
     },
     revoke: (): boolean => {
       if (oauthCredential && jwtToken) {
         try {
-          realFetch(`${backendUrl}/api/oauth/revoke`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${jwtToken}`,
+          // DELETE /auth/integrations/:integrationId
+          realFetch(
+            `${backendUrl}/auth/integrations/${oauthCredential.credentialId}`,
+            {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${jwtToken}`,
+              },
             },
-            body: JSON.stringify({
-              credentialId: oauthCredential.credentialId,
-            }),
-          });
+          );
         } catch {
           /* best effort */
         }

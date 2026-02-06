@@ -11,10 +11,8 @@ import type { AuthorizationState, SetupSubmitArgs } from './skill-state';
 // registers globalThis.telegramDispatchUpdate
 import './sync';
 // Import TDLib client wrapper - this also assigns TdLibClient to globalThis
+import type { TdLibClient as TdLibClientType, TdUpdate, TdUser } from './tdlib-client';
 import './tdlib-client';
-import type { TdUpdate, TdUser } from './tdlib-client';
-// Import the class type for type assertions
-import type { TdLibClient as TdLibClientType } from './tdlib-client';
 import { getChatStatsToolDefinition } from './tools/get-chat-stats';
 // registers globalThis.telegramSync
 // Import tool definitions

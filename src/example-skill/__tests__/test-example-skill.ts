@@ -102,7 +102,7 @@ _describe('stop()', () => {
 _describe('Setup Flow', () => {
   _it('should return credentials step on start', () => {
     freshInit();
-    const result = callTool('get-status', {});
+    const _result = callTool('get-status', {});
     // Now test setup
     const step1 = onSetupStart();
     _assertEqual(step1.step.id, 'credentials');

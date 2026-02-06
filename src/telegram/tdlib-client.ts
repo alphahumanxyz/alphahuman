@@ -37,9 +37,8 @@ interface TauriInternals {
 
 // Global type declarations
 declare global {
-   
   var tdlib: TdLibOps | undefined;
-   
+
   var __TAURI_INTERNALS__: TauriInternals | undefined;
 }
 

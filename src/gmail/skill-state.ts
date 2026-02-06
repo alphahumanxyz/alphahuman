@@ -16,7 +16,7 @@ export interface GmailSkillState {
 // Extend globalThis type
 declare global {
   function getGmailSkillState(): GmailSkillState;
-   
+
   var __gmailSkillState: GmailSkillState;
 }
 

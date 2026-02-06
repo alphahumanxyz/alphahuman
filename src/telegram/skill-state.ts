@@ -99,7 +99,7 @@ export interface TelegramState {
 
 declare global {
   function getTelegramSkillState(): TelegramState;
-   
+
   var __telegramSkillState: TelegramState;
 }
 

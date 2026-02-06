@@ -118,7 +118,7 @@ declare const model: {
 // ---------------------------------------------------------------------------
 
 /** Tool definitions exposed to the AI and other skills. */
-declare var tools: ToolDefinition[];
+declare let tools: ToolDefinition[];
 
 // ---------------------------------------------------------------------------
 // QuickJS Runtime Globals (available at runtime but not in TypeScript by default)

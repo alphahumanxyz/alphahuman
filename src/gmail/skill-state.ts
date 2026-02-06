@@ -16,7 +16,7 @@ export interface GmailSkillState {
 // Extend globalThis type
 declare global {
   function getGmailSkillState(): GmailSkillState;
-  // eslint-disable-next-line no-var
+   
   var __gmailSkillState: GmailSkillState;
 }
 

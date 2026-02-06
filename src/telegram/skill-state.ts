@@ -99,7 +99,7 @@ export interface TelegramState {
 
 declare global {
   function getTelegramSkillState(): TelegramState;
-  // eslint-disable-next-line no-var
+   
   var __telegramSkillState: TelegramState;
 }
 

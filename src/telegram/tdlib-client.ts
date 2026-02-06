@@ -37,9 +37,9 @@ interface TauriInternals {
 
 // Global type declarations
 declare global {
-  // eslint-disable-next-line no-var
+   
   var tdlib: TdLibOps | undefined;
-  // eslint-disable-next-line no-var
+   
   var __TAURI_INTERNALS__: TauriInternals | undefined;
 }
 

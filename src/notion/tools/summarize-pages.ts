@@ -54,11 +54,11 @@ export const summarizePagesTool: ToolDefinition = {
           }>)
         | undefined;
       const updatePageAiSummary = (globalThis as Record<string, unknown>).updatePageAiSummary as
-        | ((pageId: string, summary: string, category?: string, sentiment?: string) => void)
+        | ((pageId: string, summary: string, opts?: { category?: string; sentiment?: string; entities?: unknown[]; topics?: string[] }) => void)
         | undefined;
-      const inferCategoryAndSentiment = (globalThis as Record<string, unknown>)
-        .inferCategoryAndSentiment as
-        | ((text: string) => { category: string; sentiment: string })
+      const inferClassification = (globalThis as Record<string, unknown>)
+        .inferClassification as
+        | ((text: string) => { category: string; sentiment: string; entities: Array<{ id: string; type: string; name?: string; role?: string }>; topics: string[] })
         | undefined;
 
       if (!getPagesNeedingSummary || !updatePageAiSummary) {
@@ -87,22 +87,20 @@ export const summarizePagesTool: ToolDefinition = {
           const trimmed = page.content_text.trim();
           const hasContent = trimmed.length >= 50;
 
-          // Infer category and sentiment from title (and content snippet if available)
+          // Classify: category, sentiment, entities, topics — all in one LLM call
           const classifyInput = hasContent
-            ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 500)}`
+            ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 1000)}`
             : `Title: ${page.title}`;
-          const classified = inferCategoryAndSentiment
-            ? inferCategoryAndSentiment(classifyInput)
-            : { category: 'other', sentiment: 'neutral' };
+          const classification = inferClassification
+            ? inferClassification(classifyInput)
+            : { category: 'other', sentiment: 'neutral', entities: [], topics: [] };
 
           let summary: string;
 
           if (!hasContent) {
-            // No meaningful content: use title as summary
             summary = page.title;
             titleOnly++;
           } else {
-            // Build prompt with metadata context
             const metaParts: string[] = [`Title: ${page.title}`];
             if (page.url) metaParts.push(`URL: ${page.url}`);
             metaParts.push(`Created: ${page.created_time}`);
@@ -120,15 +118,29 @@ export const summarizePagesTool: ToolDefinition = {
             summary = result;
           }
 
-          // Store summary, category, and sentiment in local DB
-          updatePageAiSummary(page.id, summary, classified.category, classified.sentiment);
+          // Store summary + classification in local DB
+          updatePageAiSummary(page.id, summary, {
+            category: classification.category,
+            sentiment: classification.sentiment,
+            entities: classification.entities,
+            topics: classification.topics,
+          });
 
           // Submit to server via socket
           model.submitSummary({
             summary,
-            category: classified.category,
+            category: classification.category,
             dataSource: 'notion',
-            sentiment: classified.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+            sentiment: classification.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+            keyPoints: classification.topics.length > 0 ? classification.topics : undefined,
+            entities: classification.entities.length > 0
+              ? classification.entities.map(e => ({
+                  id: e.id,
+                  type: e.type as 'person' | 'wallet' | 'channel' | 'group' | 'organization' | 'token' | 'other',
+                  name: e.name,
+                  role: e.role,
+                }))
+              : undefined,
             metadata: {
               pageId: page.id,
               pageTitle: page.title,

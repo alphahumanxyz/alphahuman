@@ -24,6 +24,8 @@ export interface LocalPage {
   ai_summary_at: number | null;
   ai_category: string | null;
   ai_sentiment: string | null;
+  ai_entities: string | null;
+  ai_topics: string | null;
   synced_at: number;
 }
 
@@ -216,17 +218,33 @@ export function getPagesNeedingContent(limit: number, updatedAfterIso?: string):
 }
 
 /**
- * Update a page's AI-generated summary, category, and sentiment
+ * Update a page's AI-generated summary and classification data.
+ * entities and topics are stored as JSON strings.
  */
 export function updatePageAiSummary(
   pageId: string,
   summary: string,
-  category?: string,
-  sentiment?: string
+  opts?: {
+    category?: string;
+    sentiment?: string;
+    entities?: unknown[];
+    topics?: string[];
+  }
 ): void {
   db.exec(
-    'UPDATE pages SET ai_summary = ?, ai_summary_at = ?, ai_category = ?, ai_sentiment = ? WHERE id = ?',
-    [summary, Date.now(), category || null, sentiment || null, pageId]
+    `UPDATE pages SET
+      ai_summary = ?, ai_summary_at = ?, ai_category = ?, ai_sentiment = ?,
+      ai_entities = ?, ai_topics = ?
+     WHERE id = ?`,
+    [
+      summary,
+      Date.now(),
+      opts?.category || null,
+      opts?.sentiment || null,
+      opts?.entities ? JSON.stringify(opts.entities) : null,
+      opts?.topics ? JSON.stringify(opts.topics) : null,
+      pageId,
+    ]
   );
 }
 
@@ -241,7 +259,7 @@ export function getPagesNeedingSummary(limit: number): LocalPage[] {
     `SELECT * FROM pages
      WHERE archived = 0
        AND content_text IS NOT NULL
-       AND (ai_summary IS NULL OR ai_summary_at < content_synced_at)
+       -- AND (ai_summary IS NULL OR ai_summary_at < content_synced_at)
      ORDER BY last_edited_time DESC
      LIMIT ?`,
     [limit]

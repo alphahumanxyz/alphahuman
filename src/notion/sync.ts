@@ -37,19 +37,19 @@ export function performSync(): void {
   publishSyncState();
 
   try {
-    // Phase 1: Sync users
-    console.log('[notion] Sync phase 1: users');
-    syncUsers();
+    // // Phase 1: Sync users
+    // console.log('[notion] Sync phase 1: users');
+    // syncUsers();
 
-    // Phase 2: Sync pages and databases via search
-    console.log('[notion] Sync phase 2: pages & databases');
-    syncSearchItems();
+    // // Phase 2: Sync pages and databases via search
+    // console.log('[notion] Sync phase 2: pages & databases');
+    // syncSearchItems();
 
-    // Phase 3: Sync page content (block text)
-    if (s.config.contentSyncEnabled) {
-      console.log('[notion] Sync phase 3: page content');
-      syncContent();
-    }
+    // // Phase 3: Sync page content (block text)
+    // if (s.config.contentSyncEnabled) {
+    //   console.log('[notion] Sync phase 3: page content');
+    //   syncContent();
+    // }
 
     // Phase 4: AI summarization of page content
     if (s.config.contentSyncEnabled) {
@@ -335,35 +335,74 @@ function syncContent(): void {
 
 const VALID_CATEGORIES = ['research', 'meeting_notes', 'project', 'documentation', 'planning', 'design', 'engineering', 'marketing', 'finance', 'hr', 'legal', 'operations', 'other'] as const;
 const VALID_SENTIMENTS = ['positive', 'neutral', 'negative', 'mixed'] as const;
+const VALID_ENTITY_TYPES = ['person', 'wallet', 'channel', 'group', 'organization', 'token', 'other'] as const;
+
+interface PageClassification {
+  category: string;
+  sentiment: string;
+  entities: Array<{ id: string; type: string; name?: string; role?: string }>;
+  topics: string[];
+}
 
 /**
- * Use the local LLM to infer category and sentiment from page text.
+ * Use the local LLM to infer category, sentiment, entities, and topics in one call.
  * Returns defaults on failure so callers always get usable values.
  */
-function inferCategoryAndSentiment(text: string): { category: string; sentiment: string } {
+function inferClassification(text: string): PageClassification {
+  const defaults: PageClassification = { category: 'other', sentiment: 'neutral', entities: [], topics: [] };
   try {
     const prompt =
-      `Classify the following Notion page. Respond with ONLY a JSON object with two fields:\n` +
+      `Analyze the following Notion page. Respond with ONLY a JSON object:\n` +
       `- "category": one of [${VALID_CATEGORIES.join(', ')}]\n` +
-      `- "sentiment": one of [${VALID_SENTIMENTS.join(', ')}]\n\n` +
+      `- "sentiment": one of [${VALID_SENTIMENTS.join(', ')}]\n` +
+      `- "entities": array of {id, type, name, role} where type is one of [${VALID_ENTITY_TYPES.join(', ')}]. ` +
+      `Extract people mentioned, referenced pages, organizations, tokens/coins, wallets, channels, or groups.\n` +
+      `- "topics": array of short bullet-point strings (3-7 key topics or takeaways)\n\n` +
       `${text}`;
-    const raw = model.generate(prompt, { maxTokens: 60, temperature: 0.1 });
-    // Extract JSON from response
-    const match = raw.match(/\{[\s\S]*?\}/);
+    const raw = model.generate(prompt, { maxTokens: 500, temperature: 0.1 });
+    const match = raw.match(/\{[\s\S]*\}/);
     if (match) {
-      const parsed = JSON.parse(match[0]) as { category?: string; sentiment?: string };
+      const parsed = JSON.parse(match[0]) as Partial<PageClassification>;
+
       const category = VALID_CATEGORIES.includes(parsed.category as typeof VALID_CATEGORIES[number])
         ? parsed.category!
         : 'other';
       const sentiment = VALID_SENTIMENTS.includes(parsed.sentiment as typeof VALID_SENTIMENTS[number])
         ? parsed.sentiment!
         : 'neutral';
-      return { category, sentiment };
+
+      // Validate entities array
+      const entities: PageClassification['entities'] = [];
+      if (Array.isArray(parsed.entities)) {
+        for (const e of parsed.entities) {
+          const ent = e as Record<string, unknown>;
+          if (ent.id || ent.name) {
+            entities.push({
+              id: String(ent.id || ent.name || ''),
+              type: VALID_ENTITY_TYPES.includes(String(ent.type || '') as typeof VALID_ENTITY_TYPES[number])
+                ? String(ent.type)
+                : 'other',
+              name: ent.name ? String(ent.name) : undefined,
+              role: ent.role ? String(ent.role) : undefined,
+            });
+          }
+        }
+      }
+
+      // Validate topics array
+      const topics: string[] = [];
+      if (Array.isArray(parsed.topics)) {
+        for (const t of parsed.topics) {
+          if (typeof t === 'string' && t.trim()) topics.push(t.trim());
+        }
+      }
+
+      return { category, sentiment, entities, topics };
     }
   } catch {
     // Fall through to defaults
   }
-  return { category: 'other', sentiment: 'neutral' };
+  return defaults;
 }
 
 const CONTENT_LIMITS = [3000, 1500, 500];
@@ -408,7 +447,7 @@ function syncAiSummaries(): void {
     | ((limit: number) => Array<{ id: string; title: string; content_text: string; url: string | null; last_edited_time: string; created_time: string }>)
     | undefined;
   const updatePageAiSummary = (globalThis as Record<string, unknown>).updatePageAiSummary as
-    | ((pageId: string, summary: string, category?: string, sentiment?: string) => void)
+    | ((pageId: string, summary: string, opts?: { category?: string; sentiment?: string; entities?: unknown[]; topics?: string[] }) => void)
     | undefined;
 
   if (!getPagesNeedingSummary || !updatePageAiSummary) return;
@@ -429,11 +468,11 @@ function syncAiSummaries(): void {
       const trimmed = page.content_text.trim();
       const hasContent = trimmed.length >= 50;
 
-      // Infer category and sentiment from title (and content snippet if available)
+      // Classify: category, sentiment, entities, topics — all in one LLM call
       const classifyInput = hasContent
-        ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 500)}`
+        ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 1000)}`
         : `Title: ${page.title}`;
-      const { category, sentiment } = inferCategoryAndSentiment(classifyInput);
+      const classification = inferClassification(classifyInput);
 
       let summary: string;
 
@@ -454,15 +493,29 @@ function syncAiSummaries(): void {
         summary = result;
       }
 
-      // Store summary, category, and sentiment in local DB
-      updatePageAiSummary(page.id, summary, category, sentiment);
+      // Store summary + classification in local DB
+      updatePageAiSummary(page.id, summary, {
+        category: classification.category,
+        sentiment: classification.sentiment,
+        entities: classification.entities,
+        topics: classification.topics,
+      });
 
       // Submit to server via socket
       model.submitSummary({
         summary,
-        category,
+        category: classification.category,
         dataSource: 'notion',
-        sentiment: sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+        sentiment: classification.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+        keyPoints: classification.topics.length > 0 ? classification.topics : undefined,
+        entities: classification.entities.length > 0
+          ? classification.entities.map(e => ({
+              id: e.id,
+              type: e.type as 'person' | 'wallet' | 'channel' | 'group' | 'organization' | 'token' | 'other',
+              name: e.name,
+              role: e.role,
+            }))
+          : undefined,
         metadata: {
           pageId: page.id,
           pageTitle: page.title,
@@ -517,5 +570,5 @@ function publishSyncState(): void {
 const _g = globalThis as Record<string, unknown>;
 _g.performSync = performSync;
 _g.publishSyncState = publishSyncState;
-_g.inferCategoryAndSentiment = inferCategoryAndSentiment;
+_g.inferClassification = inferClassification;
 _g.summarizeWithFallback = summarizeWithFallback;

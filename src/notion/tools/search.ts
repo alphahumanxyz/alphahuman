@@ -47,7 +47,7 @@ export const searchTool: ToolDefinition = {
           return { object: 'page', ...formatPageSummary(item) };
         }
         if (item.object === 'database' || item.object === 'data_source') {
-          return { object: 'database', ...formatDatabaseSummary(item) };
+          return { object: 'data_source', ...formatDatabaseSummary(item) };
         }
         return { object: item.object, id: item.id };
       });

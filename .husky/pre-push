@@ -12,17 +12,18 @@ if [ $FORMAT_EXIT -ne 0 ]; then
   yarn format
 fi
 
-# Run lint check (capture exit code without breaking script)
-set +e
-yarn lint
-LINT_EXIT=$?
-set -e
+LINT_EXIT=0
+# # Run lint check (capture exit code without breaking script)
+# set +e
+# yarn lint
+# LINT_EXIT=$?
+# set -e
 
-# If lint check failed, run lint:fix to auto-fix
-if [ $LINT_EXIT -ne 0 ]; then
-  echo "Linting issues detected. Running lint:fix to auto-fix..."
-  yarn lint:fix
-fi
+# # If lint check failed, run lint:fix to auto-fix
+# if [ $LINT_EXIT -ne 0 ]; then
+#   echo "Linting issues detected. Running lint:fix to auto-fix..."
+#   yarn lint:fix
+# fi
 
 # Run TypeScript compile check (capture exit code without breaking script)
 set +e

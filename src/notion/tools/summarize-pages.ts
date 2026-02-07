@@ -54,7 +54,11 @@ export const summarizePagesTool: ToolDefinition = {
           }>)
         | undefined;
       const updatePageAiSummary = (globalThis as Record<string, unknown>).updatePageAiSummary as
-        | ((pageId: string, summary: string) => void)
+        | ((pageId: string, summary: string, category?: string, sentiment?: string) => void)
+        | undefined;
+      const inferCategoryAndSentiment = (globalThis as Record<string, unknown>)
+        .inferCategoryAndSentiment as
+        | ((text: string) => { category: string; sentiment: string })
         | undefined;
 
       if (!getPagesNeedingSummary || !updatePageAiSummary) {
@@ -76,36 +80,67 @@ export const summarizePagesTool: ToolDefinition = {
       let failed = 0;
       const errors: string[] = [];
 
+      let titleOnly = 0;
+
       for (const page of pages) {
         try {
-          const content =
-            page.content_text.length > 8000
-              ? page.content_text.substring(0, 8000) + '\n...(truncated)'
-              : page.content_text;
+          const trimmed = page.content_text.trim();
+          const hasContent = trimmed.length >= 50;
 
-          const prompt = `Summarize this Notion page titled "${page.title}" concisely. Focus on the key points and main purpose of the page.\n\n${content}`;
-          const summary = model.summarize(prompt, { maxTokens: 300 });
+          // Infer category and sentiment from title (and content snippet if available)
+          const classifyInput = hasContent
+            ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 500)}`
+            : `Title: ${page.title}`;
+          const classified = inferCategoryAndSentiment
+            ? inferCategoryAndSentiment(classifyInput)
+            : { category: 'other', sentiment: 'neutral' };
 
-          if (summary && summary.trim()) {
-            updatePageAiSummary(page.id, summary.trim());
+          let summary: string;
 
-            model.submitSummary({
-              summary: summary.trim(),
-              category: 'research',
-              dataSource: 'notion',
-              sentiment: 'neutral',
-              metadata: {
-                pageId: page.id,
-                pageTitle: page.title,
-                pageUrl: page.url,
-                lastEditedTime: page.last_edited_time,
-                createdTime: page.created_time,
-                contentLength: page.content_text.length,
-              },
-            });
+          if (!hasContent) {
+            // No meaningful content: use title as summary
+            summary = page.title;
+            titleOnly++;
+          } else {
+            // Build prompt with metadata context
+            const metaParts: string[] = [`Title: ${page.title}`];
+            if (page.url) metaParts.push(`URL: ${page.url}`);
+            metaParts.push(`Created: ${page.created_time}`);
+            metaParts.push(`Last edited: ${page.last_edited_time}`);
+            const metaBlock = metaParts.join('\n');
 
-            summarized++;
+            const summarizeFn = (globalThis as Record<string, unknown>)
+              .summarizeWithFallback as
+              | ((content: string, metaBlock: string) => string | null)
+              | undefined;
+            const result = summarizeFn
+              ? summarizeFn(trimmed, metaBlock)
+              : null;
+            if (!result) continue;
+            summary = result;
           }
+
+          // Store summary, category, and sentiment in local DB
+          updatePageAiSummary(page.id, summary, classified.category, classified.sentiment);
+
+          // Submit to server via socket
+          model.submitSummary({
+            summary,
+            category: classified.category,
+            dataSource: 'notion',
+            sentiment: classified.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+            metadata: {
+              pageId: page.id,
+              pageTitle: page.title,
+              pageUrl: page.url,
+              lastEditedTime: page.last_edited_time,
+              createdTime: page.created_time,
+              contentLength: trimmed.length,
+              noContent: !hasContent,
+            },
+          });
+
+          summarized++;
         } catch (e) {
           failed++;
           errors.push(`${page.title}: ${e instanceof Error ? e.message : String(e)}`);
@@ -116,6 +151,7 @@ export const summarizePagesTool: ToolDefinition = {
         success: true,
         summarized,
         failed,
+        title_only: titleOnly,
         total_candidates: pages.length,
         errors: errors.length > 0 ? errors : undefined,
       });

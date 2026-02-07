@@ -22,6 +22,8 @@ export interface LocalPage {
   content_synced_at: number | null;
   ai_summary: string | null;
   ai_summary_at: number | null;
+  ai_category: string | null;
+  ai_sentiment: string | null;
   synced_at: number;
 }
 
@@ -214,14 +216,18 @@ export function getPagesNeedingContent(limit: number, updatedAfterIso?: string):
 }
 
 /**
- * Update a page's AI-generated summary
+ * Update a page's AI-generated summary, category, and sentiment
  */
-export function updatePageAiSummary(pageId: string, summary: string): void {
-  db.exec('UPDATE pages SET ai_summary = ?, ai_summary_at = ? WHERE id = ?', [
-    summary,
-    Date.now(),
-    pageId,
-  ]);
+export function updatePageAiSummary(
+  pageId: string,
+  summary: string,
+  category?: string,
+  sentiment?: string
+): void {
+  db.exec(
+    'UPDATE pages SET ai_summary = ?, ai_summary_at = ?, ai_category = ?, ai_sentiment = ? WHERE id = ?',
+    [summary, Date.now(), category || null, sentiment || null, pageId]
+  );
 }
 
 /**
@@ -235,7 +241,6 @@ export function getPagesNeedingSummary(limit: number): LocalPage[] {
     `SELECT * FROM pages
      WHERE archived = 0
        AND content_text IS NOT NULL
-       AND content_text != ''
        AND (ai_summary IS NULL OR ai_summary_at < content_synced_at)
      ORDER BY last_edited_time DESC
      LIMIT ?`,

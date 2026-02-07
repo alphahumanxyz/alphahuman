@@ -159,7 +159,6 @@ function syncSearchItems(): void {
   let dbCount = 0;
   let pageSkipped = 0;
   let dbSkipped = 0;
-  let totalFetched = 0;
   let reachedOldItems = false;
 
   while (hasMore && !reachedOldItems) {
@@ -208,8 +207,6 @@ function syncSearchItems(): void {
           dbCount++;
         }
       }
-
-      totalFetched++;
     }
 
     hasMore = result.has_more;
@@ -336,6 +333,68 @@ function syncContent(): void {
 // Phase 4: AI summarization of synced page content
 // ---------------------------------------------------------------------------
 
+const VALID_CATEGORIES = ['research', 'meeting_notes', 'project', 'documentation', 'planning', 'design', 'engineering', 'marketing', 'finance', 'hr', 'legal', 'operations', 'other'] as const;
+const VALID_SENTIMENTS = ['positive', 'neutral', 'negative', 'mixed'] as const;
+
+/**
+ * Use the local LLM to infer category and sentiment from page text.
+ * Returns defaults on failure so callers always get usable values.
+ */
+function inferCategoryAndSentiment(text: string): { category: string; sentiment: string } {
+  try {
+    const prompt =
+      `Classify the following Notion page. Respond with ONLY a JSON object with two fields:\n` +
+      `- "category": one of [${VALID_CATEGORIES.join(', ')}]\n` +
+      `- "sentiment": one of [${VALID_SENTIMENTS.join(', ')}]\n\n` +
+      `${text}`;
+    const raw = model.generate(prompt, { maxTokens: 60, temperature: 0.1 });
+    // Extract JSON from response
+    const match = raw.match(/\{[\s\S]*?\}/);
+    if (match) {
+      const parsed = JSON.parse(match[0]) as { category?: string; sentiment?: string };
+      const category = VALID_CATEGORIES.includes(parsed.category as typeof VALID_CATEGORIES[number])
+        ? parsed.category!
+        : 'other';
+      const sentiment = VALID_SENTIMENTS.includes(parsed.sentiment as typeof VALID_SENTIMENTS[number])
+        ? parsed.sentiment!
+        : 'neutral';
+      return { category, sentiment };
+    }
+  } catch {
+    // Fall through to defaults
+  }
+  return { category: 'other', sentiment: 'neutral' };
+}
+
+const CONTENT_LIMITS = [3000, 1500, 500];
+
+/**
+ * Attempt summarization with progressively smaller content chunks.
+ * Local models have limited context windows; retry with less text on overflow.
+ */
+function summarizeWithFallback(content: string, metaBlock: string): string | null {
+  const instruction = 'Write a 2-3 sentence summary of this Notion page. Be direct and dense — include all key facts, decisions, names, dates, and action items. Omit filler and pleasantries.';
+
+  for (const limit of CONTENT_LIMITS) {
+    const truncated = content.length > limit
+      ? content.substring(0, limit) + '\n...(truncated)'
+      : content;
+    const prompt = `${instruction}\n\n--- Page Metadata ---\n${metaBlock}\n\n--- Page Content ---\n${truncated}`;
+    try {
+      const result = model.summarize(prompt, { maxTokens: 10000 });
+      if (result && result.trim()) return result.trim();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Context overflow — retry with less content
+      if (msg.includes('No sequences left') || msg.includes('context') || msg.includes('too long')) {
+        continue;
+      }
+      throw e; // Re-throw non-context errors
+    }
+  }
+  return null;
+}
+
 function syncAiSummaries(): void {
   const s = globalThis.getNotionSkillState();
 
@@ -349,7 +408,7 @@ function syncAiSummaries(): void {
     | ((limit: number) => Array<{ id: string; title: string; content_text: string; url: string | null; last_edited_time: string; created_time: string }>)
     | undefined;
   const updatePageAiSummary = (globalThis as Record<string, unknown>).updatePageAiSummary as
-    | ((pageId: string, summary: string) => void)
+    | ((pageId: string, summary: string, category?: string, sentiment?: string) => void)
     | undefined;
 
   if (!getPagesNeedingSummary || !updatePageAiSummary) return;
@@ -367,36 +426,55 @@ function syncAiSummaries(): void {
 
   for (const page of pages) {
     try {
-      // Truncate very long content to avoid overwhelming the model
-      const content = page.content_text.length > 8000
-        ? page.content_text.substring(0, 8000) + '\n...(truncated)'
-        : page.content_text;
+      const trimmed = page.content_text.trim();
+      const hasContent = trimmed.length >= 50;
 
-      const prompt = `Summarize this Notion page titled "${page.title}" concisely. Focus on the key points and main purpose of the page.\n\n${content}`;
-      const summary = model.summarize(prompt, { maxTokens: 300 });
+      // Infer category and sentiment from title (and content snippet if available)
+      const classifyInput = hasContent
+        ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 500)}`
+        : `Title: ${page.title}`;
+      const { category, sentiment } = inferCategoryAndSentiment(classifyInput);
 
-      if (summary && summary.trim()) {
-        // Store summary in local DB
-        updatePageAiSummary(page.id, summary.trim());
+      let summary: string;
 
-        // Submit to server with metadata
-        model.submitSummary({
-          summary: summary.trim(),
-          category: 'research',
-          dataSource: 'notion',
-          sentiment: 'neutral',
-          metadata: {
-            pageId: page.id,
-            pageTitle: page.title,
-            pageUrl: page.url,
-            lastEditedTime: page.last_edited_time,
-            createdTime: page.created_time,
-            contentLength: page.content_text.length,
-          },
-        });
+      if (!hasContent) {
+        // No meaningful content: use title as summary
+        summary = page.title;
+      } else {
+        // Build prompt with metadata context
+        const metaParts: string[] = [`Title: ${page.title}`];
+        if (page.url) metaParts.push(`URL: ${page.url}`);
+        metaParts.push(`Created: ${page.created_time}`);
+        metaParts.push(`Last edited: ${page.last_edited_time}`);
+        const metaBlock = metaParts.join('\n');
 
-        summarized++;
+        // Try with progressively smaller content if model context overflows
+        const result = summarizeWithFallback(trimmed, metaBlock);
+        if (!result) continue;
+        summary = result;
       }
+
+      // Store summary, category, and sentiment in local DB
+      updatePageAiSummary(page.id, summary, category, sentiment);
+
+      // Submit to server via socket
+      model.submitSummary({
+        summary,
+        category,
+        dataSource: 'notion',
+        sentiment: sentiment as 'positive' | 'neutral' | 'negative' | 'mixed',
+        metadata: {
+          pageId: page.id,
+          pageTitle: page.title,
+          pageUrl: page.url,
+          lastEditedTime: page.last_edited_time,
+          createdTime: page.created_time,
+          contentLength: trimmed.length,
+          noContent: !hasContent,
+        },
+      });
+
+      summarized++;
     } catch (e) {
       console.error(`[notion] Failed to summarize page ${page.id} ("${page.title}"): ${e}`);
       failed++;
@@ -439,3 +517,5 @@ function publishSyncState(): void {
 const _g = globalThis as Record<string, unknown>;
 _g.performSync = performSync;
 _g.publishSyncState = publishSyncState;
+_g.inferCategoryAndSentiment = inferCategoryAndSentiment;
+_g.summarizeWithFallback = summarizeWithFallback;

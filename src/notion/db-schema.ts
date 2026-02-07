@@ -26,6 +26,8 @@ export function initializeNotionSchema(): void {
       content_synced_at INTEGER,
       ai_summary TEXT,
       ai_summary_at INTEGER,
+      ai_category TEXT,
+      ai_sentiment TEXT,
       synced_at INTEGER NOT NULL
     )`,
     []
@@ -71,16 +73,14 @@ export function initializeNotionSchema(): void {
     []
   );
 
-  // Migrate: add ai_summary columns if they don't exist (for existing installs)
-  try {
-    db.exec('ALTER TABLE pages ADD COLUMN ai_summary TEXT', []);
-  } catch {
-    // Column already exists
-  }
-  try {
-    db.exec('ALTER TABLE pages ADD COLUMN ai_summary_at INTEGER', []);
-  } catch {
-    // Column already exists
+  // Migrate: add ai columns if they don't exist (for existing installs)
+  const migrateColumns = ['ai_summary TEXT', 'ai_summary_at INTEGER', 'ai_category TEXT', 'ai_sentiment TEXT'];
+  for (const col of migrateColumns) {
+    try {
+      db.exec(`ALTER TABLE pages ADD COLUMN ${col}`, []);
+    } catch {
+      // Column already exists
+    }
   }
 
   // Create indexes for performance

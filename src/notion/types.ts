@@ -20,7 +20,7 @@ export interface NotionGlobals {
   getNotionSyncState(key: string): string | null;
   setNotionSyncState(key: string, value: string): void;
   getEntityCounts(): { pages: number; databases: number; users: number; pagesWithContent: number; pagesWithSummary: number };
-  updatePageAiSummary(pageId: string, summary: string): void;
+  updatePageAiSummary(pageId: string, summary: string, category?: string, sentiment?: string): void;
   getPagesNeedingSummary(limit: number): unknown[];
   performSync(): void;
 }

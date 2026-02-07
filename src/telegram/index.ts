@@ -533,7 +533,7 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
 
     // Check if phone number contains only valid characters (+, digits, spaces, dashes)
     const phoneRegex = /^\+[1-9]\d{1,14}$/;
-    const cleanPhone = phoneNumber.replace(/[\s\-\(\)]/g, ''); // Remove formatting characters
+    const cleanPhone = phoneNumber.replace(/[\s\-()]/g, ''); // Remove formatting characters
     if (!phoneRegex.test(cleanPhone)) {
       return {
         status: 'error',
@@ -571,7 +571,7 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
     }
 
     // Send phone number (use cleaned format, async - errors will be caught by update handler)
-    const cleanPhoneNumber = phoneNumber.replace(/[\s\-\(\)]/g, ''); // Remove formatting characters
+    const cleanPhoneNumber = phoneNumber.replace(/[\s\-()]/g, ''); // Remove formatting characters
     sendPhoneNumber(cleanPhoneNumber).catch(err => {
       console.error('[telegram] Failed to send phone number:', err);
       s.clientError = err instanceof Error ? err.message : String(err);

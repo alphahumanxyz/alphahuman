@@ -160,8 +160,8 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Compute persistent data directory
-  const dataDir = resolve(rootDir, 'skills', skillId, 'data');
+  // Compute persistent data directory (root skills/data/<skill-id>/)
+  const dataDir = resolve(rootDir, 'data', skillId);
 
   if (cleanFlag) {
     if (existsSync(dataDir)) {
@@ -171,8 +171,8 @@ async function main(): Promise<void> {
   }
 
   // Resolve backend connection from env
-  const backendUrl = process.env.BACKEND_URL || process.env.VITE_BACKEND_URL || 'https://api.alphahuman.xyz';
-  const jwtToken = process.env.JWT_TOKEN || process.env.VITE_DEV_JWT_TOKEN || '';
+  const backendUrl = process.env.BACKEND_URL || process.env.BACKEND_URL || 'https://api.alphahuman.xyz';
+  const jwtToken = process.env.JWT_TOKEN || process.env.DEV_JWT_TOKEN || '';
 
   console.log(`${colors.dim}Data directory: ${dataDir}${colors.reset}`);
   console.log(`${colors.dim}Backend: ${backendUrl}${colors.reset}`);

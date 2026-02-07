@@ -226,14 +226,15 @@ __setEnv('API_KEY', 'test-value');
 
 ## Persistent Data
 
-The REPL and live script runner store data in `skills/<skill-id>/data/`:
+The REPL and live script runner store data in `data/<skill-id>/` at the skills repo root:
 
 ```
-skills/<skill-id>/data/
-  skill.db        # SQLite database (better-sqlite3)
-  store.json      # Key-value store
-  state.json      # Published frontend state
-  files/           # Filesystem I/O (data.read/write)
+data/
+  <skill-id>/
+    skill.db        # SQLite database (better-sqlite3)
+    store.json      # Key-value store
+    state.json      # Published frontend state
+    files/          # Filesystem I/O (data.read/write)
 ```
 
 Use `--clean` to wipe this directory and start fresh. Data persists across REPL restarts, which is useful for testing setup flows or accumulated state.
@@ -244,8 +245,8 @@ The test harness reads from `.env` at the repo root. Useful variables:
 
 | Variable | Purpose |
 |---|---|
-| `BACKEND_URL` / `VITE_BACKEND_URL` | Backend API URL (REPL default) |
-| `JWT_TOKEN` / `VITE_DEV_JWT_TOKEN` | Auth token for backend/OAuth flows |
+| `BACKEND_URL` / `BACKEND_URL` | Backend API URL (REPL default) |
+| `JWT_TOKEN` / `DEV_JWT_TOKEN` | Auth token for backend/OAuth flows |
 
 Skill-specific variables (e.g. API keys) can also be placed in `.env` and accessed via `platform.env('KEY')` in live mode.
 

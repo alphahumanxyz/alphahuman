@@ -20,7 +20,7 @@ __pycache__/
 *.so
 .venv/
 venv/
-skills/*/data/*
+data/*
 
 # Type checking
 .mypy_cache/

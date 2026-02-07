@@ -53,8 +53,8 @@ function init(): void {
 
   // Fall back to the host's backend URL if no server URL is configured yet
   if (!s.config.serverUrl) {
-    // Try both BACKEND_URL and VITE_BACKEND_URL (Vite uses VITE_ prefix)
-    const envUrl = platform.env('BACKEND_URL') || platform.env('VITE_BACKEND_URL');
+    // Try both BACKEND_URL and BACKEND_URL (Vite uses VITE_ prefix)
+    const envUrl = platform.env('BACKEND_URL') || platform.env('BACKEND_URL');
     if (envUrl) {
       s.config.serverUrl = envUrl;
       console.log(`[server-ping] Using BACKEND_URL from env: ${envUrl}`);
@@ -124,7 +124,7 @@ function stop(): void {
 function onSetupStart(): SetupStartResult {
   console.log('[server-ping] onSetupStart');
   // Pre-fill with the host's backend URL so the user doesn't have to type it
-  const defaultUrl = platform.env('BACKEND_URL') || platform.env('VITE_BACKEND_URL') || '';
+  const defaultUrl = platform.env('BACKEND_URL') || platform.env('BACKEND_URL') || '';
 
   return {
     step: {

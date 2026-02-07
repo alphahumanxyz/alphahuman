@@ -600,14 +600,15 @@ Pre-built example scripts in `scripts/examples/`:
 
 ### Data Persistence
 
-All runners (REPL, script runner, live runner) use persistent file-backed storage in `skills/<skill-id>/data/`:
+All runners (REPL, script runner, live runner) use persistent file-backed storage in `data/<skill-id>/` at the skills repo root:
 
 ```
-skills/<skill-id>/data/
-  skill.db          # SQLite database
-  store.json        # Key-value store
-  state.json        # Published state
-  files/            # data.read/write files
+data/
+  <skill-id>/
+    skill.db          # SQLite database
+    store.json        # Key-value store
+    state.json        # Published state
+    files/            # data.read/write files
 ```
 
 Use `--clean` to wipe this directory for a fresh start.
@@ -664,6 +665,7 @@ skills/                          # Repo root
 │   ├── example-skill/           # Kitchen-sink example
 │   └── simple-skill/            # Minimal test skill
 ├── skills/                      # Compiled JavaScript output (gitignored)
+├── data/                        # REPL/runner persistent data (skill.db, store.json, etc.)
 ├── types/
 │   └── globals.d.ts             # Ambient type declarations for bridge APIs
 ├── dev/

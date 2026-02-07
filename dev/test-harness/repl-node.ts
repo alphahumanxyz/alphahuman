@@ -40,6 +40,11 @@ const c = {
   reset: '\x1b[0m',
 };
 
+/** Validates that s is a MongoDB ObjectId (24 hex chars). Rejects values like "oauth" that cause CastError. */
+function isValidIntegrationId(s: string): boolean {
+  return /^[a-f0-9]{24}$/i.test(s);
+}
+
 // ─── Types ─────────────────────────────────────────────────────────
 
 interface Manifest {
@@ -192,7 +197,7 @@ async function loadSkill(
   }
 
   const manifest: Manifest = JSON.parse(readFileSync(skillManifestPath, 'utf-8'));
-  const dataDir = resolve(skillDir, 'data');
+  const dataDir = resolve(rootDir, 'data', skillId);
 
   if (cleanFlag && existsSync(dataDir)) {
     rmSync(dataDir, { recursive: true, force: true });
@@ -355,8 +360,13 @@ async function runOAuthFlow(
   console.log(`${c.dim}(The redirect URL looks like: .../#auth/${oauthConfig.provider}/success?integrationId=<ID>)${c.reset}\n`);
 
   const credentialId = await rl.question(`${c.cyan}Integration ID:${c.reset} `);
-  if (!credentialId.trim()) {
+  const trimmedId = credentialId.trim();
+  if (!trimmedId) {
     console.log(`${c.yellow}OAuth setup cancelled (no integration ID provided)${c.reset}`);
+    return;
+  }
+  if (!isValidIntegrationId(trimmedId)) {
+    console.log(`${c.red}Invalid integration ID. Expected a 24-character hex string (e.g. 69876e9b6197df74de78d89a), not "${trimmedId}".${c.reset}`);
     return;
   }
 
@@ -364,7 +374,7 @@ async function runOAuthFlow(
   const oauthApi = G.oauth as { __setCredential?: (cred: unknown) => void } | undefined;
   if (oauthApi?.__setCredential) {
     oauthApi.__setCredential({
-      credentialId: credentialId.trim(),
+      credentialId: trimmedId,
       provider: oauthConfig.provider,
       scopes: oauthConfig.scopes,
       isValid: true,
@@ -383,7 +393,7 @@ async function runOAuthFlow(
   if (typeof onOAuthComplete === 'function') {
     try {
       const result = onOAuthComplete({
-        credentialId: credentialId.trim(),
+        credentialId: trimmedId,
         provider: oauthConfig.provider,
         grantedScopes: oauthConfig.scopes,
       });
@@ -1001,8 +1011,8 @@ async function main(): Promise<void> {
   }
 
   // ─── Backend Connection ─────────────────────────────────────────
-  const defaultBackendUrl = process.env.BACKEND_URL || process.env.VITE_BACKEND_URL || 'https://api.alphahuman.xyz';
-  const defaultJwtToken = process.env.JWT_TOKEN || process.env.VITE_DEV_JWT_TOKEN || '';
+  const defaultBackendUrl = process.env.BACKEND_URL || process.env.BACKEND_URL || 'https://api.alphahuman.xyz';
+  const defaultJwtToken = process.env.JWT_TOKEN || process.env.DEV_JWT_TOKEN || '';
 
   console.log(`\n${c.bold}Backend Connection${c.reset}`);
   console.log(`${c.dim}${'─'.repeat(50)}${c.reset}`);
@@ -1044,18 +1054,21 @@ async function main(): Promise<void> {
   if (ctx.manifest.setup?.oauth) {
     const storeApi = ctx.G.store as { get?: (key: string) => unknown } | undefined;
     const savedConfig = storeApi?.get?.('config') as { credentialId?: string } | null;
-    if (savedConfig?.credentialId) {
+    const credId = savedConfig?.credentialId;
+    if (credId && isValidIntegrationId(credId)) {
       const oauthApi = ctx.G.oauth as { __setCredential?: (cred: unknown) => void } | undefined;
       if (oauthApi?.__setCredential) {
         oauthApi.__setCredential({
-          credentialId: savedConfig.credentialId,
+          credentialId: credId,
           provider: ctx.manifest.setup.oauth.provider,
           scopes: ctx.manifest.setup.oauth.scopes,
           isValid: true,
           createdAt: Date.now(),
         });
-        console.log(`${c.green}OAuth credential restored${c.reset} ${c.dim}(${savedConfig.credentialId.substring(0, 8)}...)${c.reset}`);
+        console.log(`${c.green}OAuth credential restored${c.reset} ${c.dim}(${credId.substring(0, 8)}...)${c.reset}`);
       }
+    } else if (credId && !isValidIntegrationId(credId)) {
+      console.log(`${c.yellow}Skipped invalid saved credential ID "${credId}" — run OAuth flow to set a valid integration ID.${c.reset}`);
     }
   }
 

@@ -393,6 +393,158 @@ export function getPagesNeedingSummary(limit: number): LocalPage[] {
   ) as unknown as LocalPage[];
 }
 
+/**
+ * Get database rows that need AI summarization.
+ * Returns rows where properties_text exists and no summary record exists
+ * in the summaries table yet (using the row ID as page_id).
+ */
+export function getRowsNeedingSummary(
+  limit: number
+): Array<{
+  id: string;
+  database_id: string;
+  title: string;
+  url: string | null;
+  properties_text: string | null;
+  created_time: string;
+  last_edited_time: string;
+  created_by_id: string | null;
+  last_edited_by_id: string | null;
+}> {
+  return db.all(
+    `SELECT r.id, r.database_id, r.title, r.url, r.properties_text,
+            r.created_time, r.last_edited_time, r.created_by_id, r.last_edited_by_id
+     FROM database_rows r
+     LEFT JOIN summaries s ON s.page_id = r.id
+     WHERE r.archived = 0
+       AND r.properties_text IS NOT NULL
+       AND s.id IS NULL
+     ORDER BY r.last_edited_time DESC
+     LIMIT ?`,
+    [limit]
+  ) as unknown as Array<{
+    id: string;
+    database_id: string;
+    title: string;
+    url: string | null;
+    properties_text: string | null;
+    created_time: string;
+    last_edited_time: string;
+    created_by_id: string | null;
+    last_edited_by_id: string | null;
+  }>;
+}
+
+/**
+ * Get structured entities for a database row, with user names resolved from the users table.
+ * Database rows have created_by_id and last_edited_by_id but also may have
+ * people/relation properties in their properties_json.
+ */
+export function getRowStructuredEntities(
+  rowId: string
+): Array<{ id: string; type: string; name?: string; role: string; property?: string }> {
+  const row = db.get(
+    'SELECT properties_json, created_by_id, last_edited_by_id FROM database_rows WHERE id = ?',
+    [rowId]
+  ) as {
+    properties_json: string | null;
+    created_by_id: string | null;
+    last_edited_by_id: string | null;
+  } | null;
+  if (!row) return [];
+
+  const entities: Array<{
+    id: string;
+    type: string;
+    name?: string;
+    role: string;
+    property?: string;
+  }> = [];
+  const seen = new Set<string>();
+
+  const add = (
+    id: string,
+    type: string,
+    name: string | undefined,
+    role: string,
+    property?: string
+  ) => {
+    const key = `${id}:${role}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    entities.push({ id, type, name: name || undefined, role, property });
+  };
+
+  // Top-level created_by / last_edited_by
+  if (row.created_by_id) {
+    add(row.created_by_id, 'person', undefined, 'creator');
+  }
+  if (row.last_edited_by_id) {
+    add(row.last_edited_by_id, 'person', undefined, 'last_editor');
+  }
+
+  // Scan properties for people, relations, etc.
+  if (row.properties_json) {
+    try {
+      const props = JSON.parse(row.properties_json) as Record<string, unknown>;
+      for (const [propName, propVal] of Object.entries(props)) {
+        const prop = propVal as Record<string, unknown>;
+        const propType = prop.type as string;
+
+        if (propType === 'people' && Array.isArray(prop.people)) {
+          for (const person of prop.people as Array<Record<string, unknown>>) {
+            if (person.id) {
+              add(
+                person.id as string,
+                'person',
+                person.name as string | undefined,
+                'assignee',
+                propName
+              );
+            }
+          }
+        } else if (propType === 'relation' && Array.isArray(prop.relation)) {
+          for (const rel of prop.relation as Array<Record<string, unknown>>) {
+            if (rel.id) {
+              add(rel.id as string, 'page', undefined, 'linked', propName);
+            }
+          }
+        } else if (propType === 'created_by' && prop.created_by) {
+          const cb = prop.created_by as Record<string, unknown>;
+          if (cb.id) {
+            add(cb.id as string, 'person', cb.name as string | undefined, 'creator', propName);
+          }
+        } else if (propType === 'last_edited_by' && prop.last_edited_by) {
+          const leb = prop.last_edited_by as Record<string, unknown>;
+          if (leb.id) {
+            add(
+              leb.id as string,
+              'person',
+              leb.name as string | undefined,
+              'last_editor',
+              propName
+            );
+          }
+        }
+      }
+    } catch {
+      // Invalid JSON, skip property extraction
+    }
+  }
+
+  // Resolve names from users table
+  for (const entity of entities) {
+    if (entity.type === 'person' && !entity.name) {
+      const user = db.get('SELECT name FROM users WHERE id = ?', [entity.id]) as {
+        name: string;
+      } | null;
+      if (user) entity.name = user.name;
+    }
+  }
+
+  return entities;
+}
+
 // ---------------------------------------------------------------------------
 // Summary operations
 // ---------------------------------------------------------------------------
@@ -400,6 +552,7 @@ export function getPagesNeedingSummary(limit: number): LocalPage[] {
 export interface LocalSummary {
   id: number;
   page_id: string;
+  url: string | null;
   summary: string;
   category: string | null;
   sentiment: string | null;
@@ -419,6 +572,7 @@ export interface LocalSummary {
  */
 export function insertSummary(opts: {
   pageId: string;
+  url?: string | null;
   summary: string;
   category?: string;
   sentiment?: string;
@@ -430,11 +584,12 @@ export function insertSummary(opts: {
 }): void {
   db.exec(
     `INSERT INTO summaries (
-      page_id, summary, category, sentiment, entities, topics, metadata,
+      page_id, url, summary, category, sentiment, entities, topics, metadata,
       source_created_at, source_updated_at, created_at, synced
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
       opts.pageId,
+      opts.url || null,
       opts.summary,
       opts.category || null,
       opts.sentiment || null,
@@ -842,10 +997,9 @@ export function getEntityCounts(): {
     'SELECT COUNT(*) as cnt FROM pages WHERE content_text IS NOT NULL',
     []
   ) as { cnt: number } | null;
-  const pagesWithSummary = db.get(
-    'SELECT COUNT(DISTINCT page_id) as cnt FROM summaries',
-    []
-  ) as { cnt: number } | null;
+  const pagesWithSummary = db.get('SELECT COUNT(DISTINCT page_id) as cnt FROM summaries', []) as {
+    cnt: number;
+  } | null;
   const summariesTotal = db.get('SELECT COUNT(*) as cnt FROM summaries', []) as {
     cnt: number;
   } | null;
@@ -884,7 +1038,9 @@ _g.getLocalDatabases = getLocalDatabases;
 _g.getLocalUsers = getLocalUsers;
 _g.getPagesNeedingContent = getPagesNeedingContent;
 _g.getPagesNeedingSummary = getPagesNeedingSummary;
+_g.getRowsNeedingSummary = getRowsNeedingSummary;
 _g.getPageStructuredEntities = getPageStructuredEntities;
+_g.getRowStructuredEntities = getRowStructuredEntities;
 _g.getEntityCounts = getEntityCounts;
 _g.insertSummary = insertSummary;
 _g.getUnsyncedSummaries = getUnsyncedSummaries;

@@ -288,11 +288,11 @@ const value = db.kvGet('key');
 ### `state` — Persistent Key-Value State
 
 ```typescript
-state.set('config', { apiKey: 'xxx' });     // Persists AND publishes to frontend
-const config = state.get('config');          // Read from persistent store
-state.setPartial({ lastPing: Date.now() });  // Bulk set (persists + publishes each key)
-state.delete('config');                       // Remove from persistent store
-const keys = state.keys();                    // List all persisted keys
+state.set('config', { apiKey: 'xxx' }); // Persists AND publishes to frontend
+const config = state.get('config'); // Read from persistent store
+state.setPartial({ lastPing: Date.now() }); // Bulk set (persists + publishes each key)
+state.delete('config'); // Remove from persistent store
+const keys = state.keys(); // List all persisted keys
 ```
 
 ### `net` — HTTP Networking

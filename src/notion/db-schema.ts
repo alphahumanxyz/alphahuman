@@ -82,10 +82,12 @@ export function initializeNotionSchema(): void {
   );
 
   // Summaries table: stores AI-generated summaries with sync tracking
+  // page_id holds the source ID (page or database row)
   db.exec(
     `CREATE TABLE IF NOT EXISTS summaries (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       page_id TEXT NOT NULL,
+      url TEXT,
       summary TEXT NOT NULL,
       category TEXT,
       sentiment TEXT,
@@ -96,8 +98,7 @@ export function initializeNotionSchema(): void {
       source_updated_at TEXT NOT NULL,
       created_at INTEGER NOT NULL,
       synced INTEGER NOT NULL DEFAULT 0,
-      synced_at INTEGER,
-      FOREIGN KEY (page_id) REFERENCES pages(id)
+      synced_at INTEGER
     )`,
     []
   );
@@ -109,6 +110,16 @@ export function initializeNotionSchema(): void {
     // Column already exists
   }
 
+  // Migrate: add url column to summaries if it doesn't exist (for existing installs)
+  try {
+    db.exec('ALTER TABLE summaries ADD COLUMN url TEXT', []);
+  } catch {
+    // Column already exists
+  }
+
+  // Migrate: drop old FK constraint on summaries (page_id now holds page OR row IDs)
+  // SQLite doesn't enforce FKs by default, so this is just documentation cleanup.
+
   // Create indexes for performance
   db.exec('CREATE INDEX IF NOT EXISTS idx_pages_last_edited ON pages(last_edited_time DESC)', []);
   db.exec('CREATE INDEX IF NOT EXISTS idx_pages_parent ON pages(parent_type, parent_id)', []);
@@ -117,10 +128,7 @@ export function initializeNotionSchema(): void {
     'CREATE INDEX IF NOT EXISTS idx_databases_last_edited ON databases(last_edited_time DESC)',
     []
   );
-  db.exec(
-    'CREATE INDEX IF NOT EXISTS idx_db_rows_database_id ON database_rows(database_id)',
-    []
-  );
+  db.exec('CREATE INDEX IF NOT EXISTS idx_db_rows_database_id ON database_rows(database_id)', []);
   db.exec(
     'CREATE INDEX IF NOT EXISTS idx_db_rows_last_edited ON database_rows(last_edited_time DESC)',
     []

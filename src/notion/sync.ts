@@ -136,12 +136,16 @@ function syncUsers(): void {
   let hasMore = true;
   let count = 0;
 
+  // Collect all user records for emitting after sync
+  const allUsers: Array<Record<string, unknown>> = [];
+
   while (hasMore) {
     const result = getApi().listUsers(100, startCursor);
 
     for (const user of result.results) {
       try {
         upsertUser(user as Record<string, unknown>);
+        allUsers.push(user as Record<string, unknown>);
         count++;
       } catch (e) {
         console.error(
@@ -152,6 +156,31 @@ function syncUsers(): void {
 
     hasMore = result.has_more;
     startCursor = (result.next_cursor as string | undefined) || undefined;
+  }
+
+  // Emit user data to frontend with all relevant fields
+  if (allUsers.length > 0) {
+    const usersPayload = allUsers.map(u => {
+      const person = u.person as Record<string, unknown> | undefined;
+      const bot = u.bot as Record<string, unknown> | undefined;
+      return {
+        id: u.id as string,
+        name: (u.name as string) || '(Unknown)',
+        type: (u.type as string) || 'person',
+        email: (person?.email as string) || null,
+        avatarUrl: (u.avatar_url as string) || null,
+        // Bot-specific fields
+        botOwnerType: bot
+          ? ((bot.owner as Record<string, unknown>)?.type as string) || null
+          : null,
+        botWorkspaceId: bot
+          ? ((bot.owner as Record<string, unknown>)?.workspace as boolean)
+            ? 'workspace'
+            : null
+          : null,
+      };
+    });
+    state.set('users', usersPayload);
   }
 
   console.log(`[notion] Synced ${count} users`);
@@ -375,10 +404,7 @@ function syncDatabaseRows(): void {
   }
 
   // Get all locally synced databases
-  const databases = getLocalDatabases({ limit: 100 }) as Array<{
-    id: string;
-    title: string;
-  }>;
+  const databases = getLocalDatabases({ limit: 100 }) as Array<{ id: string; title: string }>;
 
   if (databases.length === 0) {
     console.log('[notion] No databases to sync rows for');
@@ -405,18 +431,21 @@ function syncDatabaseRows(): void {
         };
         if (startCursor) body.start_cursor = startCursor;
 
-        let result: {
-          results: Record<string, unknown>[];
-          has_more: boolean;
-          next_cursor?: string;
-        };
+        let result: { results: Record<string, unknown>[]; has_more: boolean; next_cursor?: string };
         try {
           result = api.queryDataSource(database.id, body) as typeof result;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           // Skip databases we can't query (permissions, deleted, etc.)
-          if (msg.includes('404') || msg.includes('403') || msg.includes('no data sources') || msg.includes('Could not find')) {
-            console.warn(`[notion] Cannot query database "${database.title}" (${database.id}): ${msg}`);
+          if (
+            msg.includes('404') ||
+            msg.includes('403') ||
+            msg.includes('no data sources') ||
+            msg.includes('Could not find')
+          ) {
+            console.warn(
+              `[notion] Cannot query database "${database.title}" (${database.id}): ${msg}`
+            );
             break;
           }
           throw e;
@@ -438,7 +467,9 @@ function syncDatabaseRows(): void {
             upsertDatabaseRow(rec, database.id);
             rowCount++;
           } catch (e) {
-            console.error(`[notion] Failed to upsert row ${rec.id} in database ${database.id}: ${e}`);
+            console.error(
+              `[notion] Failed to upsert row ${rec.id} in database ${database.id}: ${e}`
+            );
             totalErrors++;
           }
           fetched++;
@@ -458,7 +489,9 @@ function syncDatabaseRows(): void {
         );
       }
     } catch (e) {
-      console.error(`[notion] Failed to sync rows for database "${database.title}" (${database.id}): ${e}`);
+      console.error(
+        `[notion] Failed to sync rows for database "${database.title}" (${database.id}): ${e}`
+      );
       totalErrors++;
     }
   }
@@ -674,7 +707,7 @@ function mergeEntities(
 }
 
 /**
- * Phase 4a: Generate AI summaries for pages that need them.
+ * Phase 4a: Generate AI summaries for pages and database rows that need them.
  * Stores results in the `summaries` table with synced=0.
  * Does NOT submit to the server — that's handled by syncSummariesToServer().
  */
@@ -699,15 +732,37 @@ function generateSummaries(): void {
         created_time: string;
       }>)
     | undefined;
+  const getRowsNeedingSummary = (globalThis as Record<string, unknown>).getRowsNeedingSummary as
+    | ((
+        limit: number
+      ) => Array<{
+        id: string;
+        database_id: string;
+        title: string;
+        url: string | null;
+        properties_text: string | null;
+        created_time: string;
+        last_edited_time: string;
+        created_by_id: string | null;
+        last_edited_by_id: string | null;
+      }>)
+    | undefined;
   const getPageStructuredEntities = (globalThis as Record<string, unknown>)
     .getPageStructuredEntities as
     | ((
         pageId: string
       ) => Array<{ id: string; type: string; name?: string; role: string; property?: string }>)
     | undefined;
+  const getRowStructuredEntities = (globalThis as Record<string, unknown>)
+    .getRowStructuredEntities as
+    | ((
+        rowId: string
+      ) => Array<{ id: string; type: string; name?: string; role: string; property?: string }>)
+    | undefined;
   const insertSummaryFn = (globalThis as Record<string, unknown>).insertSummary as
     | ((opts: {
         pageId: string;
+        url?: string | null;
         summary: string;
         category?: string;
         sentiment?: string;
@@ -719,90 +774,185 @@ function generateSummaries(): void {
       }) => void)
     | undefined;
 
-  if (!getPagesNeedingSummary || !insertSummaryFn) return;
+  if (!insertSummaryFn) return;
 
   const batchSize = s.config.maxPagesPerContentSync;
-  const pages = getPagesNeedingSummary(batchSize);
-
-  if (pages.length === 0) {
-    console.log('[notion] No pages need AI summarization');
-    return;
-  }
-
   let summarized = 0;
   let failed = 0;
 
-  for (const page of pages) {
-    try {
-      const trimmed = page.content_text.trim();
-      const hasContent = trimmed.length >= 50;
+  // --- Summarize pages ---
+  if (getPagesNeedingSummary) {
+    const pages = getPagesNeedingSummary(batchSize);
 
-      // Classify: category, sentiment, entities, topics — all in one LLM call
-      const classifyInput = hasContent
-        ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 1000)}`
-        : `Title: ${page.title}`;
-      const classification = inferClassification(classifyInput);
+    if (pages.length === 0) {
+      console.log('[notion] No pages need AI summarization');
+    } else {
+      for (const page of pages) {
+        try {
+          const trimmed = page.content_text.trim();
+          const hasContent = trimmed.length >= 50;
 
-      let summary: string;
+          const classifyInput = hasContent
+            ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 1000)}`
+            : `Title: ${page.title}`;
+          const classification = inferClassification(classifyInput);
 
-      if (!hasContent) {
-        // No meaningful content: use title as summary
-        summary = page.title;
-      } else {
-        // Build prompt with metadata context
-        const metaParts: string[] = [`Title: ${page.title}`];
-        if (page.url) metaParts.push(`URL: ${page.url}`);
-        metaParts.push(`Created: ${page.created_time}`);
-        metaParts.push(`Last edited: ${page.last_edited_time}`);
-        const metaBlock = metaParts.join('\n');
+          let summary: string;
 
-        // Try with progressively smaller content if model context overflows
-        const result = summarizeWithFallback(trimmed, metaBlock);
-        if (!result) continue;
-        summary = result;
+          if (!hasContent) {
+            summary = page.title;
+          } else {
+            const metaParts: string[] = [`Title: ${page.title}`];
+            if (page.url) metaParts.push(`URL: ${page.url}`);
+            metaParts.push(`Created: ${page.created_time}`);
+            metaParts.push(`Last edited: ${page.last_edited_time}`);
+            const metaBlock = metaParts.join('\n');
+
+            const result = summarizeWithFallback(trimmed, metaBlock);
+            if (!result) continue;
+            summary = result;
+          }
+
+          const structuredEnts = getPageStructuredEntities?.(page.id) ?? [];
+          const mergedEntities = mergeEntities(structuredEnts, classification.entities);
+
+          insertSummaryFn({
+            pageId: page.id,
+            url: page.url,
+            summary,
+            category: classification.category,
+            sentiment: classification.sentiment,
+            entities: mergedEntities.map(e => ({
+              id: e.id,
+              dataSourceId: 'notionId',
+              type: e.type === 'page' ? 'other' : e.type,
+              name: e.name,
+              role: e.role,
+            })),
+            topics: classification.topics,
+            metadata: {
+              sourceType: 'page',
+              pageId: page.id,
+              pageTitle: page.title,
+              pageUrl: page.url,
+              lastEditedTime: page.last_edited_time,
+              createdTime: page.created_time,
+              contentLength: trimmed.length,
+              noContent: !hasContent,
+            },
+            sourceCreatedAt: new Date(page.created_time).toISOString(),
+            sourceUpdatedAt: new Date(page.last_edited_time).toISOString(),
+          });
+
+          summarized++;
+        } catch (e) {
+          console.error(`[notion] Failed to summarize page ${page.id} ("${page.title}"): ${e}`);
+          failed++;
+        }
       }
 
-      // Merge structured entities (from Notion properties) with LLM-inferred entities
-      const structuredEnts = getPageStructuredEntities?.(page.id) ?? [];
-      const mergedEntities = mergeEntities(structuredEnts, classification.entities);
-
-      // Store in summaries table (synced=0, will be sent to server later)
-      insertSummaryFn({
-        pageId: page.id,
-        summary,
-        category: classification.category,
-        sentiment: classification.sentiment,
-        entities: mergedEntities.map(e => ({
-          id: e.id,
-          dataSourceId: 'notionId',
-          type: e.type === 'page' ? 'other' : e.type,
-          name: e.name,
-          role: e.role,
-        })),
-        topics: classification.topics,
-        metadata: {
-          pageId: page.id,
-          pageTitle: page.title,
-          pageUrl: page.url,
-          lastEditedTime: page.last_edited_time,
-          createdTime: page.created_time,
-          contentLength: trimmed.length,
-          noContent: !hasContent,
-        },
-        sourceCreatedAt: new Date(page.created_time).toISOString(),
-        sourceUpdatedAt: new Date(page.last_edited_time).toISOString(),
-      });
-
-      summarized++;
-    } catch (e) {
-      console.error(`[notion] Failed to summarize page ${page.id} ("${page.title}"): ${e}`);
-      failed++;
+      console.log(
+        `[notion] AI summaries (pages): ${summarized} summarized${failed > 0 ? `, ${failed} failed` : ''}`
+      );
     }
   }
 
-  console.log(
-    `[notion] AI summaries: ${summarized} pages summarized${failed > 0 ? `, ${failed} failed` : ''}`
-  );
+  // --- Summarize database rows ---
+  if (getRowsNeedingSummary) {
+    const rows = getRowsNeedingSummary(batchSize);
+
+    if (rows.length === 0) {
+      console.log('[notion] No database rows need AI summarization');
+    } else {
+      let rowsSummarized = 0;
+      let rowsFailed = 0;
+
+      for (const row of rows) {
+        try {
+          const trimmed = (row.properties_text || '').trim();
+          const hasContent = trimmed.length >= 20; // Lower threshold for rows (properties are shorter)
+
+          const classifyInput = hasContent
+            ? `Database Row: ${row.title}\nProperties: ${trimmed.substring(0, 1000)}`
+            : `Database Row: ${row.title}`;
+          const classification = inferClassification(classifyInput);
+
+          let summary: string;
+
+          if (!hasContent) {
+            summary = row.title;
+          } else {
+            const metaParts: string[] = [`Title: ${row.title}`];
+            if (row.url) metaParts.push(`URL: ${row.url}`);
+            metaParts.push(`Database: ${row.database_id}`);
+            metaParts.push(`Created: ${row.created_time}`);
+            metaParts.push(`Last edited: ${row.last_edited_time}`);
+            const metaBlock = metaParts.join('\n');
+
+            const result = summarizeWithFallback(trimmed, metaBlock);
+            if (!result) {
+              // For rows, fall back to title if summarization fails entirely
+              summary = row.title;
+            } else {
+              summary = result;
+            }
+          }
+
+          const structuredEnts = getRowStructuredEntities?.(row.id) ?? [];
+          const mergedEntities = mergeEntities(structuredEnts, classification.entities);
+
+          insertSummaryFn({
+            pageId: row.id,
+            url: row.url,
+            summary,
+            category: classification.category,
+            sentiment: classification.sentiment,
+            entities: mergedEntities.map(e => ({
+              id: e.id,
+              dataSourceId: 'notionId',
+              type: e.type === 'page' ? 'other' : e.type,
+              name: e.name,
+              role: e.role,
+            })),
+            topics: classification.topics,
+            metadata: {
+              sourceType: 'database_row',
+              rowId: row.id,
+              databaseId: row.database_id,
+              rowTitle: row.title,
+              rowUrl: row.url,
+              lastEditedTime: row.last_edited_time,
+              createdTime: row.created_time,
+              contentLength: trimmed.length,
+              noContent: !hasContent,
+            },
+            sourceCreatedAt: new Date(row.created_time).toISOString(),
+            sourceUpdatedAt: new Date(row.last_edited_time).toISOString(),
+          });
+
+          rowsSummarized++;
+        } catch (e) {
+          console.error(
+            `[notion] Failed to summarize database row ${row.id} ("${row.title}"): ${e}`
+          );
+          rowsFailed++;
+        }
+      }
+
+      summarized += rowsSummarized;
+      failed += rowsFailed;
+
+      console.log(
+        `[notion] AI summaries (rows): ${rowsSummarized} summarized${rowsFailed > 0 ? `, ${rowsFailed} failed` : ''}`
+      );
+    }
+  }
+
+  if (summarized > 0 || failed > 0) {
+    console.log(
+      `[notion] AI summaries total: ${summarized} summarized${failed > 0 ? `, ${failed} failed` : ''}`
+    );
+  }
 }
 
 /**
@@ -812,9 +962,12 @@ function generateSummaries(): void {
  */
 function syncSummariesToServer(): void {
   const getUnsyncedSummariesFn = (globalThis as Record<string, unknown>).getUnsyncedSummaries as
-    | ((limit: number) => Array<{
+    | ((
+        limit: number
+      ) => Array<{
         id: number;
         page_id: string;
+        url: string | null;
         summary: string;
         category: string | null;
         sentiment: string | null;
@@ -850,6 +1003,7 @@ function syncSummariesToServer(): void {
 
       model.submitSummary({
         summary: row.summary,
+        url: row.url || undefined,
         category: row.category || undefined,
         dataSource: 'notion',
         sentiment: (row.sentiment as 'positive' | 'neutral' | 'negative' | 'mixed') || 'neutral',

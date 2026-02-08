@@ -110,14 +110,14 @@ yarn test:model <skill-id> <script-file>
 
 Skills have access to these global namespaces (defined in `types/globals.d.ts`):
 
-| Namespace  | Purpose                                   |
-| ---------- | ----------------------------------------- |
+| Namespace  | Purpose                                             |
+| ---------- | --------------------------------------------------- |
 | `db`       | SQLite database scoped to skill                     |
 | `net`      | HTTP networking (synchronous)                       |
 | `cron`     | Cron scheduling (6-field syntax)                    |
 | `skills`   | Inter-skill communication                           |
 | `platform` | OS info, env vars, notifications                    |
-| `state`    | Persistent key-value store + real-time frontend pub  |
+| `state`    | Persistent key-value store + real-time frontend pub |
 | `data`     | File I/O in skill's data directory                  |
 | `model`    | Local LLM inference (generate, summarize)           |
 
@@ -158,11 +158,11 @@ const schedules = cron.list();
 Unified persistent key-value store that also publishes values to the frontend in real time.
 
 ```typescript
-state.set('config', { apiKey: 'xxx' });     // Persists AND publishes to frontend
-const config = state.get('config');          // Read from persistent store
-state.setPartial({ lastPing: Date.now() });  // Bulk set (persists + publishes each key)
-state.delete('config');                       // Remove from persistent store
-const keys = state.keys();                    // List all persisted keys
+state.set('config', { apiKey: 'xxx' }); // Persists AND publishes to frontend
+const config = state.get('config'); // Read from persistent store
+state.setPartial({ lastPing: Date.now() }); // Bulk set (persists + publishes each key)
+state.delete('config'); // Remove from persistent store
+const keys = state.keys(); // List all persisted keys
 ```
 
 ### Data (`data`)

@@ -232,8 +232,8 @@ The REPL and live script runner store data in `data/<skill-id>/` at the skills r
 data/
   <skill-id>/
     skill.db        # SQLite database (better-sqlite3)
-    store.json      # Key-value store
-    state.json      # Published frontend state
+    kv.json         # Persistent key-value store (state.get/set/delete/keys)
+    state.json      # Published frontend state (state.set/setPartial)
     files/          # Filesystem I/O (data.read/write)
 ```
 

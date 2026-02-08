@@ -364,7 +364,7 @@ export async function createBridgeAPIs(
   };
 
   // State — persistent store + frontend-publishing state
-  const pStore = createPersistentStore(join(dataDir, 'store.json'));
+  const pStore = createPersistentStore(join(dataDir, 'kv.json'));
   const stateFilePath = join(dataDir, 'state.json');
   const pState = createPersistentState(stateFilePath);
   const stateApi = {

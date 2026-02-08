@@ -125,7 +125,7 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
   // State API - persistent key-value store + frontend state publishing
   let stateApi;
   if (dataDir) {
-    const pStore: PersistentStore = createPersistentStore(join(dataDir, 'store.json'));
+    const pStore: PersistentStore = createPersistentStore(join(dataDir, 'kv.json'));
     const pState = createPersistentState(join(dataDir, 'state.json'));
     stateApi = {
       get: (key: string): unknown => pStore.get(key),

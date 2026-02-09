@@ -1,6 +1,6 @@
 // Tool: notion-sync-status
 // Returns current sync status and statistics
-import '../skill-state';
+import { getNotionSkillState } from '../skill-state';
 
 export const syncStatusTool: ToolDefinition = {
   name: 'sync-status',
@@ -10,7 +10,7 @@ export const syncStatusTool: ToolDefinition = {
   input_schema: { type: 'object', properties: {} },
   execute(): string {
     try {
-      const s = globalThis.getNotionSkillState();
+      const s = getNotionSkillState();
 
       return JSON.stringify({
         connected: !!oauth.getCredential(),

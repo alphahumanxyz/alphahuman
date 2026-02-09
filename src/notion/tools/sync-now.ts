@@ -1,7 +1,7 @@
 // Tool: notion-sync-now
 // Triggers an immediate sync and returns the result
+import { getNotionSkillState } from '../skill-state';
 import { performSync } from '../sync';
-import '../skill-state';
 
 export const syncNowTool: ToolDefinition = {
   name: 'sync-now',
@@ -11,7 +11,7 @@ export const syncNowTool: ToolDefinition = {
   input_schema: { type: 'object', properties: {} },
   execute(): string {
     try {
-      const s = globalThis.getNotionSkillState();
+      const s = getNotionSkillState();
 
       if (!oauth.getCredential()) {
         return JSON.stringify({

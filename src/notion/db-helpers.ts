@@ -1019,30 +1019,3 @@ export function getEntityCounts(): {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Expose helper functions on globalThis for tools and sync to use
-// ---------------------------------------------------------------------------
-
-const _g = globalThis as Record<string, unknown>;
-_g.upsertPage = upsertPage;
-_g.upsertDatabase = upsertDatabase;
-_g.upsertDatabaseRow = upsertDatabaseRow;
-_g.getDatabaseRowById = getDatabaseRowById;
-_g.getLocalDatabaseRows = getLocalDatabaseRows;
-_g.upsertUser = upsertUser;
-_g.updatePageContent = updatePageContent;
-_g.getPageById = getPageById;
-_g.getDatabaseById = getDatabaseById;
-_g.getLocalPages = getLocalPages;
-_g.getLocalDatabases = getLocalDatabases;
-_g.getLocalUsers = getLocalUsers;
-_g.getPagesNeedingContent = getPagesNeedingContent;
-_g.getPagesNeedingSummary = getPagesNeedingSummary;
-_g.getRowsNeedingSummary = getRowsNeedingSummary;
-_g.getPageStructuredEntities = getPageStructuredEntities;
-_g.getRowStructuredEntities = getRowStructuredEntities;
-_g.getEntityCounts = getEntityCounts;
-_g.insertSummary = insertSummary;
-_g.getUnsyncedSummaries = getUnsyncedSummaries;
-_g.markSummariesSynced = markSummariesSynced;
-_g.getSummaryCounts = getSummaryCounts;

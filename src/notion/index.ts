@@ -5,7 +5,9 @@
 import './api/index';
 import './db-helpers';
 import './db-schema';
-import './skill-state';
+import { initializeNotionSchema } from './db-schema';
+import { getEntityCounts } from './db-helpers';
+import { getNotionSkillState } from './skill-state';
 import type { NotionSkillConfig } from './skill-state';
 import { performSync } from './sync';
 import tools from './tools/index';
@@ -16,11 +18,9 @@ import tools from './tools/index';
 
 function init(): void {
   console.log('[notion] Initializing');
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
-  // Initialize database schema
-  const initSchema = (globalThis as { initializeNotionSchema?: () => void }).initializeNotionSchema;
-  if (initSchema) initSchema();
+  initializeNotionSchema();
 
   // Load persisted config from store
   const saved = state.get('config') as Partial<NotionSkillConfig> | null;
@@ -41,28 +41,13 @@ function init(): void {
       typeof lastSync === 'number' ? lastSync : new Date(lastSync).getTime();
   }
 
-  // Load entity counts
-  const getEntityCounts = (
-    globalThis as {
-      getEntityCounts?: () => {
-        pages: number;
-        databases: number;
-        databaseRows: number;
-        users: number;
-        pagesWithContent: number;
-        pagesWithSummary: number;
-      };
-    }
-  ).getEntityCounts;
-  if (getEntityCounts) {
-    const counts = getEntityCounts();
-    s.syncStatus.totalPages = counts.pages;
-    s.syncStatus.totalDatabases = counts.databases;
-    s.syncStatus.totalDatabaseRows = counts.databaseRows;
-    s.syncStatus.totalUsers = counts.users;
-    s.syncStatus.pagesWithContent = counts.pagesWithContent;
-    s.syncStatus.pagesWithSummary = counts.pagesWithSummary;
-  }
+  const counts = getEntityCounts();
+  s.syncStatus.totalPages = counts.pages;
+  s.syncStatus.totalDatabases = counts.databases;
+  s.syncStatus.totalDatabaseRows = counts.databaseRows;
+  s.syncStatus.totalUsers = counts.users;
+  s.syncStatus.pagesWithContent = counts.pagesWithContent;
+  s.syncStatus.pagesWithSummary = counts.pagesWithSummary;
 
   const cred = oauth.getCredential();
   if (cred) {
@@ -76,7 +61,7 @@ function init(): void {
 }
 
 function start(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   if (!oauth.getCredential()) {
     console.log('[notion] No credential — skill inactive until OAuth completes');
@@ -104,7 +89,7 @@ function start(): void {
 
 function stop(): void {
   console.log('[notion] Stopping');
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   // Unregister cron
   cron.unregister('notion-sync');
@@ -129,12 +114,12 @@ function onCronTrigger(scheduleId: string): void {
 // ---------------------------------------------------------------------------
 
 function onSessionStart(args: { sessionId: string }): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   s.activeSessions.push(args.sessionId);
 }
 
 function onSessionEnd(args: { sessionId: string }): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const index = s.activeSessions.indexOf(args.sessionId);
   if (index > -1) {
     s.activeSessions.splice(index, 1);
@@ -146,7 +131,7 @@ function onSessionEnd(args: { sessionId: string }): void {
 // ---------------------------------------------------------------------------
 
 function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   s.config.credentialId = args.credentialId;
   console.log(
     `[notion] OAuth complete — credential: ${args.credentialId}, account: ${args.accountLabel || '(unknown)'}`
@@ -168,7 +153,7 @@ function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void {
 
 function onOAuthRevoked(args: OAuthRevokedArgs): void {
   console.log(`[notion] OAuth revoked — reason: ${args.reason}`);
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   s.config.credentialId = '';
   s.config.workspaceName = '';
@@ -179,7 +164,7 @@ function onOAuthRevoked(args: OAuthRevokedArgs): void {
 
 function onDisconnect(): void {
   console.log('[notion] Disconnecting');
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   oauth.revoke();
   s.config.credentialId = '';
@@ -194,7 +179,7 @@ function onDisconnect(): void {
 // ---------------------------------------------------------------------------
 
 function onListOptions(): { options: SkillOption[] } {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   return {
     options: [
@@ -232,7 +217,7 @@ function onListOptions(): { options: SkillOption[] } {
 }
 
 function onSetOption(args: { name: string; value: unknown }): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const credential = oauth.getCredential();
 
   switch (args.name) {
@@ -263,7 +248,7 @@ function onSetOption(args: { name: string; value: unknown }): void {
 // ---------------------------------------------------------------------------
 
 function publishState(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const isConnected = !!oauth.getCredential();
 
   state.setPartial({
@@ -292,7 +277,6 @@ function publishState(): void {
 // ---------------------------------------------------------------------------
 // Tool definitions
 // ---------------------------------------------------------------------------
-
 
 // ---------------------------------------------------------------------------
 // Expose lifecycle hooks on globalThis so the REPL/runtime can call them.
@@ -323,7 +307,5 @@ const skill: Skill = {
   onSetOption,
   publishState,
 };
-
-console.log('skill-tools', skill.tools);
 
 export default skill;

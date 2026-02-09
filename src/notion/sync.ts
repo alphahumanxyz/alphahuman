@@ -9,12 +9,16 @@ import {
   getLocalDatabases,
   getPageById,
   getPagesNeedingContent,
+  getUnsyncedSummaries,
+  markSummariesSynced,
   updatePageContent,
   upsertDatabase,
   upsertDatabaseRow,
   upsertPage,
+  upsertUser,
 } from './db-helpers';
 import { fetchBlockTreeText } from './helpers';
+import { getNotionSkillState } from './skill-state';
 import './skill-state';
 
 // ---------------------------------------------------------------------------
@@ -22,7 +26,7 @@ import './skill-state';
 // ---------------------------------------------------------------------------
 
 export function performSync(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   // Guard: skip if already syncing or no credential
   if (s.syncStatus.syncInProgress) {
@@ -107,14 +111,6 @@ export function performSync(): void {
 // ---------------------------------------------------------------------------
 
 function syncUsers(): void {
-  const upsertUser = (globalThis as Record<string, unknown>).upsertUser as
-    | ((user: Record<string, unknown>) => void)
-    | undefined;
-  if (!upsertUser) {
-    console.warn('[notion] upsertUser not available on globalThis — skipping user sync');
-    return;
-  }
-
   let startCursor: string | undefined;
   let hasMore = true;
   let count = 0;
@@ -175,7 +171,7 @@ function syncUsers(): void {
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function syncSearchItems(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const lastSyncTime = s.syncStatus.lastSyncTime;
   const isFirstSync = lastSyncTime === 0;
   const cutoffMs = Date.now() - THIRTY_DAYS_MS;
@@ -353,7 +349,7 @@ function syncDatabaseRows(): void {
     return;
   }
 
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const lastSyncTime = s.syncStatus.lastSyncTime;
   const isFirstSync = lastSyncTime === 0;
 
@@ -464,7 +460,7 @@ function syncDatabaseRows(): void {
 // ---------------------------------------------------------------------------
 
 function syncContent(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const batchSize = s.config.maxPagesPerContentSync;
   const cutoffIso = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
   const pages = getPagesNeedingContent(batchSize, cutoffIso);
@@ -498,30 +494,7 @@ function syncContent(): void {
  * and marks them as synced on success.
  */
 function syncSummariesToServer(): void {
-  const getUnsyncedSummariesFn = (globalThis as Record<string, unknown>).getUnsyncedSummaries as
-    | ((
-        limit: number
-      ) => Array<{
-        id: number;
-        page_id: string;
-        url: string | null;
-        summary: string;
-        category: string | null;
-        sentiment: string | null;
-        entities: string | null;
-        topics: string | null;
-        metadata: string | null;
-        source_created_at: string;
-        source_updated_at: string;
-      }>)
-    | undefined;
-  const markSummariesSyncedFn = (globalThis as Record<string, unknown>).markSummariesSynced as
-    | ((ids: number[]) => void)
-    | undefined;
-
-  if (!getUnsyncedSummariesFn || !markSummariesSyncedFn) return;
-
-  const batch = getUnsyncedSummariesFn(100);
+  const batch = getUnsyncedSummaries(100);
   if (batch.length === 0) {
     console.log('[notion] No unsynced summaries to send');
     return;
@@ -583,7 +556,7 @@ function syncSummariesToServer(): void {
 
   // Mark successfully sent summaries as synced
   if (syncedIds.length > 0) {
-    markSummariesSyncedFn(syncedIds);
+    markSummariesSynced(syncedIds);
   }
 
   console.log(
@@ -596,7 +569,7 @@ function syncSummariesToServer(): void {
 // ---------------------------------------------------------------------------
 
 function publishSyncState(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const isConnected = !!oauth.getCredential();
 
   state.setPartial({

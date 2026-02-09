@@ -75,6 +75,24 @@ declare const data: {
   write(filename: string, content: string): void;
 };
 
+/** Event-based hooks system for reactive, cross-skill event triggers. */
+declare const hooks: {
+  /** Register a hook that listens for events matching a declarative filter. */
+  register(definition: HookDefinition): boolean;
+  /** Unregister a previously registered hook by ID. */
+  unregister(hookId: string): boolean;
+  /** Update an existing hook's definition (partial merge). */
+  update(hookId: string, changes: Partial<HookDefinition>): boolean;
+  /** Enable or disable a hook without removing it. */
+  setEnabled(hookId: string, enabled: boolean): boolean;
+  /** List all hooks registered by this skill. */
+  list(): HookRegistrationInfo[];
+  /** Emit an event into the hooks system for other skills to react to. */
+  emit(event: HookEvent): number;
+  /** Get the current accumulation buffer state for a hook (for debugging). */
+  getAccumulationState(hookId: string): HookAccumulationState | null;
+};
+
 /** OAuth credential management and authenticated API proxy. */
 declare const oauth: {
   /** Get the OAuth credential for this skill, or null if not connected. */
@@ -91,19 +109,33 @@ declare const oauth: {
   revoke(): boolean;
 };
 
-/** Local LLM inference. */
+/** AI model API (routes to cloud backend). */
 declare const model: {
-  /** Check if a local model is available for inference. */
-  isAvailable(): boolean;
-  /** Get detailed model status (loaded, downloading, error, etc.). */
-  getStatus(): ModelStatus;
-  /** Generate text from a prompt. Returns the generated text. */
+  /**
+   * Generate text from a prompt via the backend API.
+   * @param prompt - Input prompt
+   * @param options - Generation options
+   * @returns Generated text
+   */
   generate(prompt: string, options?: ModelGenerateOptions): string;
-  /** Summarize a block of text. Returns the summary. */
+
+  /**
+   * Summarize text via the backend API.
+   * @param text - Text to summarize
+   * @param options - Summarize options
+   * @returns Summary text
+   */
   summarize(text: string, options?: ModelSummarizeOptions): string;
-  /** Submit a summary to the server via socket.io. Fire-and-forget. */
-  submitSummary(submission: SummarySubmission): void;
 };
+
+interface ModelGenerateOptions {
+  maxTokens?: number;
+  temperature?: number;
+}
+
+interface ModelSummarizeOptions {
+  maxTokens?: number;
+}
 
 // ---------------------------------------------------------------------------
 // Tools (assigned by skills on globalThis)
@@ -254,26 +286,6 @@ interface SkillInfo {
   status?: string;
 }
 
-interface ModelStatus {
-  available: boolean;
-  loaded: boolean;
-  loading: boolean;
-  downloaded: boolean;
-  downloadProgress?: number;
-  error?: string;
-  modelPath?: string;
-}
-
-interface ModelGenerateOptions {
-  maxTokens?: number;
-  temperature?: number;
-  topP?: number;
-}
-
-interface ModelSummarizeOptions {
-  maxTokens?: number;
-}
-
 interface SummarySubmission {
   /** Main text summary. Must be non-empty. */
   summary: string;
@@ -309,6 +321,186 @@ interface SummaryEntity {
   role?: string;
   /** Additional entity metadata. */
   metadata?: Record<string, unknown>;
+}
+
+// ---------------------------------------------------------------------------
+// Hook interfaces
+// ---------------------------------------------------------------------------
+
+/** Event emitted into the hooks system by emitter skills. */
+interface HookEvent {
+  /** Hierarchical event type: "<skill_id>.<entity>.<action>" */
+  type: string;
+  /** ID of the skill that emitted this event. */
+  source: string;
+  /** Epoch milliseconds when the event occurred. */
+  timestamp: number;
+  /** Named entities involved in the event (keyed by role: "chat", "sender", etc.). */
+  entities: Record<string, HookEntityRef>;
+  /** Event-specific payload data. */
+  data: Record<string, unknown>;
+}
+
+/** Reference to an entity within a hook event. */
+interface HookEntityRef {
+  /** Entity type from entity_schema (e.g. "telegram.group"). */
+  type: string;
+  /** Entity ID. */
+  id: string;
+  /** Optional properties for richer matching. */
+  properties?: Record<string, unknown>;
+}
+
+/**
+ * Declarative filter — all top-level conditions are ANDed.
+ * Fully JSON-serializable so the Rust runtime can evaluate without JS callbacks.
+ */
+interface HookFilter {
+  /** Match event types (glob support: "telegram.message.*"). */
+  event_types?: string[];
+  /** Match by emitter skill ID. */
+  source_skills?: string[];
+  /** Match on entity roles (keyed by role name). */
+  entities?: Record<string, HookEntityFilter>;
+  /** Match on event data fields. */
+  data_match?: HookDataMatch[];
+  /** OR composition: at least one sub-filter must match. */
+  any_of?: HookFilter[];
+  /** AND composition: all sub-filters must match. */
+  all_of?: HookFilter[];
+  /** NOT composition: none of the sub-filters may match. */
+  none_of?: HookFilter[];
+}
+
+/** Entity-specific filter within a HookFilter. */
+interface HookEntityFilter {
+  /** Match entity type(s). */
+  types?: string[];
+  /** Match entity ID(s). */
+  ids?: string[];
+  /** Match on entity properties. */
+  properties?: HookDataMatch[];
+}
+
+/** Single comparison condition for data or property matching. */
+interface HookDataMatch {
+  /** Dot-path into the data object (e.g. "text", "is_outgoing"). */
+  path: string;
+  /** Comparison operator. */
+  op:
+    | 'eq'
+    | 'neq'
+    | 'gt'
+    | 'gte'
+    | 'lt'
+    | 'lte'
+    | 'contains'
+    | 'not_contains'
+    | 'starts_with'
+    | 'ends_with'
+    | 'regex'
+    | 'in'
+    | 'not_in'
+    | 'exists'
+    | 'not_exists';
+  /** Value to compare against (not needed for exists/not_exists). */
+  value?: unknown;
+}
+
+/** Full hook registration provided to hooks.register(). */
+interface HookDefinition {
+  /** Unique ID within the skill (e.g. "reply-trigger"). */
+  id: string;
+  /** Human-readable description for UI/debugging. */
+  description?: string;
+  /** Declarative filter describing which events match. */
+  filter: HookFilter;
+  /** Optional accumulation/batching configuration. */
+  accumulate?: HookAccumulation;
+  /** Whether the hook is active (default: true). */
+  enabled?: boolean;
+  /** Auto-disable after this many fires. */
+  max_fires?: number;
+  /** Ordering priority when multiple hooks match (higher = first). */
+  priority?: number;
+}
+
+/** Accumulation (batching) configuration for a hook. */
+interface HookAccumulation {
+  /** Fire after accumulating this many events. */
+  count?: number;
+  /** Time window in milliseconds for accumulation. */
+  window_ms?: number;
+  /** Dot-path for per-entity batching (e.g. "entities.chat.id"). */
+  group_by?: string;
+  /** Minimum events required before window-based trigger fires. */
+  min_count?: number;
+  /** Whether to reset the buffer after firing (default: true). */
+  reset_on_fire?: boolean;
+}
+
+/** Arguments passed to onHookTriggered() when a hook fires. */
+interface HookTriggeredArgs {
+  /** The hook ID that fired. */
+  hookId: string;
+  /** The most recent event that caused the hook to fire. */
+  event: HookEvent;
+  /** All accumulated events in the batch. */
+  events: HookEvent[];
+  /** Total number of events in the batch. */
+  eventCount: number;
+  /** Accumulation group key value, if group_by was configured. */
+  groupKey?: string;
+  /** Epoch ms of the first event in this batch. */
+  firstEventAt: number;
+  /** Epoch ms when the hook actually fired. */
+  triggeredAt: number;
+}
+
+/** Returned by onHookTriggered — describes actions for the runtime/frontend. */
+interface HookActionResult {
+  /** Actions to dispatch (interpreted by the runtime/frontend). */
+  actions?: HookAction[];
+  /** If true, suppress action dispatch (hook handled everything itself). */
+  suppress?: boolean;
+}
+
+/** Generic action descriptor — the frontend/runtime interprets these. */
+interface HookAction {
+  /** Action type (e.g. "invoke_agent", "notify", "call_tool"). */
+  type: string;
+  /** Action-specific payload. */
+  payload: Record<string, unknown>;
+}
+
+/** Information returned by hooks.list(). */
+interface HookRegistrationInfo {
+  /** Hook ID. */
+  id: string;
+  /** Whether the hook is currently enabled. */
+  enabled: boolean;
+  /** The hook's filter. */
+  filter: HookFilter;
+  /** Number of times this hook has fired. */
+  fireCount: number;
+  /** Epoch ms of last fire, or null if never fired. */
+  lastFiredAt: number | null;
+  /** Max fires limit, if set. */
+  maxFires?: number;
+  /** Priority value. */
+  priority?: number;
+  /** Whether accumulation is configured. */
+  hasAccumulation: boolean;
+}
+
+/** Debug info for a hook's accumulation buffer, returned by hooks.getAccumulationState(). */
+interface HookAccumulationState {
+  /** Number of events currently buffered. */
+  bufferedCount: number;
+  /** Epoch ms timestamps of buffered events. */
+  eventTimestamps: number[];
+  /** Per-group buffer counts (if group_by is configured). */
+  groups: Record<string, number>;
 }
 
 // ---------------------------------------------------------------------------
@@ -360,3 +552,10 @@ interface OAuthRevokedArgs {
 
 declare function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void;
 declare function onOAuthRevoked(args: OAuthRevokedArgs): void;
+
+// ---------------------------------------------------------------------------
+// Hook lifecycle hooks
+// ---------------------------------------------------------------------------
+
+/** Called when a registered hook's filter matches and accumulation conditions are met. */
+declare function onHookTriggered(args: HookTriggeredArgs): HookActionResult | void;

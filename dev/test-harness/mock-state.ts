@@ -49,18 +49,6 @@ export interface MockState {
   timers: Map<number, TimerEntry>;
   nextTimerId: number;
 
-  /** model.generate/summarize call log */
-  modelCalls: Array<{ method: string; prompt: string; options?: unknown }>;
-
-  /** Prompt-substring → response mapping for model mock */
-  modelResponses: Record<string, string>;
-
-  /** Whether the mock model is available */
-  modelAvailable: boolean;
-
-  /** model.submitSummary() recorded submissions */
-  summarySubmissions: Array<SummarySubmissionRecord>;
-
   /** OAuth mock credential */
   oauthCredential: OAuthCredentialMock | null;
 
@@ -75,6 +63,21 @@ export interface MockState {
 
   /** Whether oauth.revoke() was called */
   oauthRevoked: boolean;
+
+  /** Recorded model.generate/summarize calls */
+  modelCalls: Array<{ type: string; prompt?: string; text?: string }>;
+
+  /** Queue of mock responses for model.generate/summarize (shifted on each call) */
+  modelResponses: string[];
+
+  /** Registered hooks */
+  hooks: Record<string, HookRegistrationMock>;
+
+  /** Emitted hook events log */
+  hookEvents: HookEventMock[];
+
+  /** Hook trigger log (onHookTriggered calls) */
+  hookTriggers: Array<{ hookId: string; events: HookEventMock[]; groupKey?: string }>;
 }
 
 export interface DbTable {
@@ -120,23 +123,42 @@ export interface OAuthFetchOptionsMock {
   baseUrl?: string;
 }
 
-export interface SummarySubmissionRecord {
-  summary: string;
-  keyPoints?: string[];
-  category?: string;
-  sentiment?: 'positive' | 'neutral' | 'negative' | 'mixed';
-  dataSource?: string;
-  timeRange?: { start: number; end: number };
-  entities?: Array<{
-    id: string;
-    type: string;
-    name?: string;
-    role?: string;
-    metadata?: Record<string, unknown>;
-  }>;
-  metadata?: Record<string, unknown>;
-  /** Timestamp when the mock recorded the submission */
-  submittedAt: number;
+export interface HookEventMock {
+  type: string;
+  source: string;
+  timestamp: number;
+  entities: Record<string, { type: string; id: string; properties?: Record<string, unknown> }>;
+  data: Record<string, unknown>;
+}
+
+export interface HookFilterMock {
+  event_types?: string[];
+  source_skills?: string[];
+  entities?: Record<string, { types?: string[]; ids?: string[]; properties?: Array<{ path: string; op: string; value?: unknown }> }>;
+  data_match?: Array<{ path: string; op: string; value?: unknown }>;
+  any_of?: HookFilterMock[];
+  all_of?: HookFilterMock[];
+  none_of?: HookFilterMock[];
+}
+
+export interface HookRegistrationMock {
+  id: string;
+  description?: string;
+  filter: HookFilterMock;
+  accumulate?: {
+    count?: number;
+    window_ms?: number;
+    group_by?: string;
+    min_count?: number;
+    reset_on_fire?: boolean;
+  };
+  enabled: boolean;
+  maxFires?: number;
+  priority: number;
+  fireCount: number;
+  lastFiredAt: number | null;
+  /** Accumulated events buffer (keyed by group_by value or '__default') */
+  buffer: Record<string, HookEventMock[]>;
 }
 
 /** Global mock state instance */
@@ -161,15 +183,16 @@ function createFreshState(): MockState {
     consoleOutput: [],
     timers: new Map(),
     nextTimerId: 1,
-    modelCalls: [],
-    modelResponses: {},
-    modelAvailable: true,
-    summarySubmissions: [],
     oauthCredential: null,
     oauthFetchCalls: [],
     oauthFetchResponses: {},
     oauthFetchErrors: {},
     oauthRevoked: false,
+    modelCalls: [],
+    modelResponses: [],
+    hooks: {},
+    hookEvents: [],
+    hookTriggers: [],
   };
 }
 
@@ -192,8 +215,6 @@ export function initMockState(options?: {
   platformOs?: string;
   peerSkills?: SkillInfo[];
   dataFiles?: Record<string, string>;
-  modelResponses?: Record<string, string>;
-  modelAvailable?: boolean;
   oauthCredential?: OAuthCredentialMock;
   oauthFetchResponses?: Record<string, { status: number; body: string; headers?: Record<string, string> }>;
 }): void {
@@ -219,12 +240,6 @@ export function initMockState(options?: {
   }
   if (options?.dataFiles) {
     mockState.dataFiles = { ...options.dataFiles };
-  }
-  if (options?.modelResponses) {
-    mockState.modelResponses = { ...options.modelResponses };
-  }
-  if (options?.modelAvailable !== undefined) {
-    mockState.modelAvailable = options.modelAvailable;
   }
   if (options?.oauthCredential) {
     mockState.oauthCredential = { ...options.oauthCredential };
@@ -261,16 +276,6 @@ export function setPlatformOs(os: string): void {
   mockState.platformOs = os;
 }
 
-/** Set up a mock model response for prompts containing a substring */
-export function mockModelResponse(promptSubstring: string, response: string): void {
-  mockState.modelResponses[promptSubstring] = response;
-}
-
-/** Set whether the mock model is available */
-export function setModelAvailable(available: boolean): void {
-  mockState.modelAvailable = available;
-}
-
 /** Set up a mock OAuth credential */
 export function mockOAuthCredential(credential: OAuthCredentialMock): void {
   mockState.oauthCredential = { ...credential };
@@ -292,4 +297,9 @@ export function mockOAuthFetchResponse(
 export function mockOAuthFetchError(path: string, message = 'OAuth proxy error'): void {
   mockState.oauthFetchErrors[path] = message;
   delete mockState.oauthFetchResponses[path];
+}
+
+/** Queue a mock response for the next model.generate() or model.summarize() call */
+export function mockModelResponse(response: string): void {
+  mockState.modelResponses.push(response);
 }

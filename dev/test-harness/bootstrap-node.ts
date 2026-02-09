@@ -7,7 +7,7 @@
 
 import { join } from 'path';
 import { dbAll, dbExec, dbGet, dbKvGet, dbKvSet } from './mock-db';
-import { getMockState, type FetchOptions } from './mock-state';
+import { getMockState, type FetchOptions, type HookEventMock, type HookFilterMock, type HookRegistrationMock } from './mock-state';
 import { createPersistentData } from './persistent-data';
 import { createPersistentDb, type PersistentDb } from './persistent-db';
 import { createPersistentState } from './persistent-state';
@@ -182,66 +182,6 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     },
   };
 
-  // Model API - local LLM inference mock
-  const model = {
-    isAvailable: (): boolean => {
-      return state.modelAvailable;
-    },
-    getStatus: (): Record<string, unknown> => {
-      return {
-        available: state.modelAvailable,
-        loaded: state.modelAvailable,
-        loading: false,
-        downloaded: state.modelAvailable,
-      };
-    },
-    generate: (prompt: string, options?: unknown): string => {
-      state.modelCalls.push({ method: 'generate', prompt, options });
-      for (const [substring, response] of Object.entries(state.modelResponses)) {
-        if (prompt.includes(substring)) return response;
-      }
-      if (!state.modelAvailable) throw new Error('Model not available');
-      return '(mock model response)';
-    },
-    summarize: (text: string, options?: unknown): string => {
-      state.modelCalls.push({ method: 'summarize', prompt: text, options });
-      if (!state.modelAvailable) throw new Error('Model not available');
-      return '(mock summary)';
-    },
-    submitSummary: (submission: Record<string, unknown>): void => {
-      if (
-        !submission ||
-        typeof (submission as any).summary !== 'string' ||
-        ((submission as any).summary as string).trim() === ''
-      ) {
-        throw new Error('model.submitSummary: summary field is required and must be a non-empty string');
-      }
-      const s = submission as any;
-      if (s.sentiment && !['positive', 'neutral', 'negative', 'mixed'].includes(s.sentiment)) {
-        throw new Error(`model.submitSummary: invalid sentiment "${s.sentiment}"`);
-      }
-      if (s.timeRange) {
-        if (typeof s.timeRange.start !== 'number' || typeof s.timeRange.end !== 'number') {
-          throw new Error('model.submitSummary: timeRange.start and timeRange.end must be numbers');
-        }
-      }
-      state.summarySubmissions.push({
-        summary: s.summary,
-        keyPoints: s.keyPoints,
-        category: s.category,
-        sentiment: s.sentiment,
-        dataSource: s.dataSource,
-        timeRange: s.timeRange,
-        entities: s.entities,
-        metadata: s.metadata,
-        submittedAt: Date.now(),
-      });
-      globalThis.console.log(
-        `[model.submitSummary] "${s.summary.substring(0, 80)}${s.summary.length > 80 ? '...' : ''}"`
-      );
-    },
-  };
-
   // OAuth API - credential management and authenticated proxy
   const oauth = {
     getCredential: (): unknown => {
@@ -287,6 +227,236 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
       return true;
     },
   };
+
+  // Hooks API - event-based pub/sub system
+  const hooks = {
+    register: (definition: Record<string, unknown>): boolean => {
+      const id = definition.id as string;
+      if (!id) return false;
+      state.hooks[id] = {
+        id,
+        description: (definition.description as string) ?? undefined,
+        filter: (definition.filter as Record<string, unknown>) ?? {},
+        accumulate: definition.accumulate as HookRegistrationMock['accumulate'],
+        enabled: definition.enabled !== false,
+        maxFires: definition.max_fires as number | undefined,
+        priority: (definition.priority as number) ?? 0,
+        fireCount: 0,
+        lastFiredAt: null,
+        buffer: {},
+      };
+      return true;
+    },
+    unregister: (hookId: string): boolean => {
+      if (!state.hooks[hookId]) return false;
+      delete state.hooks[hookId];
+      return true;
+    },
+    update: (hookId: string, changes: Record<string, unknown>): boolean => {
+      const hook = state.hooks[hookId];
+      if (!hook) return false;
+      if (changes.filter !== undefined) hook.filter = changes.filter as HookRegistrationMock['filter'];
+      if (changes.description !== undefined) hook.description = changes.description as string;
+      if (changes.accumulate !== undefined) hook.accumulate = changes.accumulate as HookRegistrationMock['accumulate'];
+      if (changes.enabled !== undefined) hook.enabled = changes.enabled as boolean;
+      if (changes.max_fires !== undefined) hook.maxFires = changes.max_fires as number;
+      if (changes.priority !== undefined) hook.priority = changes.priority as number;
+      return true;
+    },
+    setEnabled: (hookId: string, enabled: boolean): boolean => {
+      const hook = state.hooks[hookId];
+      if (!hook) return false;
+      hook.enabled = enabled;
+      return true;
+    },
+    list: (): unknown[] => {
+      return Object.values(state.hooks).map((h) => ({
+        id: h.id,
+        enabled: h.enabled,
+        filter: h.filter,
+        fireCount: h.fireCount,
+        lastFiredAt: h.lastFiredAt,
+        maxFires: h.maxFires,
+        priority: h.priority,
+        hasAccumulation: !!h.accumulate,
+      }));
+    },
+    emit: (event: Record<string, unknown>): number => {
+      const hookEvent = event as unknown as HookEventMock;
+      state.hookEvents.push(hookEvent);
+
+      let matchCount = 0;
+      const sortedHooks = Object.values(state.hooks)
+        .filter((h) => h.enabled)
+        .sort((a, b) => b.priority - a.priority);
+
+      for (const hook of sortedHooks) {
+        if (hook.maxFires !== undefined && hook.fireCount >= hook.maxFires) continue;
+        if (!matchesFilter(hook.filter, hookEvent)) continue;
+
+        matchCount++;
+
+        if (hook.accumulate) {
+          // Accumulate events
+          const groupKey = hook.accumulate.group_by
+            ? resolvePathValue(hookEvent, hook.accumulate.group_by)
+            : '__default';
+          const key = String(groupKey ?? '__default');
+          if (!hook.buffer[key]) hook.buffer[key] = [];
+          hook.buffer[key].push(hookEvent);
+
+          // Check if accumulation threshold is met
+          const count = hook.buffer[key].length;
+          const threshold = hook.accumulate.count ?? 1;
+          const minCount = hook.accumulate.min_count ?? 1;
+
+          if (count >= threshold && count >= minCount) {
+            fireHook(hook, hook.buffer[key], key !== '__default' ? key : undefined);
+            if (hook.accumulate.reset_on_fire !== false) {
+              hook.buffer[key] = [];
+            }
+          }
+        } else {
+          // Fire immediately
+          fireHook(hook, [hookEvent], undefined);
+        }
+      }
+
+      return matchCount;
+    },
+    getAccumulationState: (hookId: string): unknown => {
+      const hook = state.hooks[hookId];
+      if (!hook) return null;
+      const groups: Record<string, number> = {};
+      const allTimestamps: number[] = [];
+      for (const [key, events] of Object.entries(hook.buffer)) {
+        groups[key] = events.length;
+        for (const e of events) allTimestamps.push(e.timestamp);
+      }
+      return {
+        bufferedCount: allTimestamps.length,
+        eventTimestamps: allTimestamps.sort((a, b) => a - b),
+        groups,
+      };
+    },
+  };
+
+  /** Fire a hook: call onHookTriggered on the skill context */
+  function fireHook(hook: HookRegistrationMock, events: HookEventMock[], groupKey?: string): void {
+    hook.fireCount++;
+    hook.lastFiredAt = Date.now();
+    state.hookTriggers.push({ hookId: hook.id, events: [...events], groupKey });
+
+    // The runtime would call onHookTriggered on the listener skill.
+    // In the test harness, we check if the global onHookTriggered is defined.
+    const onHookTriggered = (globalThis as Record<string, unknown>).onHookTriggered as
+      | ((args: Record<string, unknown>) => unknown)
+      | undefined;
+    if (typeof onHookTriggered === 'function') {
+      onHookTriggered({
+        hookId: hook.id,
+        event: events[events.length - 1],
+        events,
+        eventCount: events.length,
+        groupKey,
+        firstEventAt: events[0]?.timestamp ?? Date.now(),
+        triggeredAt: Date.now(),
+      });
+    }
+  }
+
+  /** Resolve a dot-path value from a hook event (e.g. "entities.chat.id"). */
+  function resolvePathValue(obj: unknown, path: string): unknown {
+    const parts = path.split('.');
+    let current: unknown = obj;
+    for (const part of parts) {
+      if (current == null || typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+  }
+
+  /** Check if a hook event matches a filter. */
+  function matchesFilter(filter: HookFilterMock, event: HookEventMock): boolean {
+    // event_types check (with glob support)
+    if (filter.event_types && filter.event_types.length > 0) {
+      const matched = filter.event_types.some((pattern) => {
+        if (pattern.includes('*')) {
+          const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace(/\*/g, '.*') + '$');
+          return regex.test(event.type);
+        }
+        return pattern === event.type;
+      });
+      if (!matched) return false;
+    }
+
+    // source_skills check
+    if (filter.source_skills && filter.source_skills.length > 0) {
+      if (!filter.source_skills.includes(event.source)) return false;
+    }
+
+    // entities check
+    if (filter.entities) {
+      for (const [role, entityFilter] of Object.entries(filter.entities)) {
+        const entity = event.entities[role];
+        if (!entity) return false;
+        if (entityFilter.types && entityFilter.types.length > 0 && !entityFilter.types.includes(entity.type)) return false;
+        if (entityFilter.ids && entityFilter.ids.length > 0 && !entityFilter.ids.includes(entity.id)) return false;
+        if (entityFilter.properties) {
+          for (const match of entityFilter.properties) {
+            if (!evaluateMatch(entity.properties ?? {}, match.path, match.op, match.value)) return false;
+          }
+        }
+      }
+    }
+
+    // data_match check
+    if (filter.data_match) {
+      for (const match of filter.data_match) {
+        if (!evaluateMatch(event.data, match.path, match.op, match.value)) return false;
+      }
+    }
+
+    // any_of: at least one sub-filter must match
+    if (filter.any_of && filter.any_of.length > 0) {
+      if (!filter.any_of.some((sub) => matchesFilter(sub, event))) return false;
+    }
+
+    // all_of: all sub-filters must match
+    if (filter.all_of && filter.all_of.length > 0) {
+      if (!filter.all_of.every((sub) => matchesFilter(sub, event))) return false;
+    }
+
+    // none_of: no sub-filter may match
+    if (filter.none_of && filter.none_of.length > 0) {
+      if (filter.none_of.some((sub) => matchesFilter(sub, event))) return false;
+    }
+
+    return true;
+  }
+
+  /** Evaluate a single data match condition. */
+  function evaluateMatch(data: Record<string, unknown>, path: string, op: string, value?: unknown): boolean {
+    const actual = resolvePathValue(data, path);
+    switch (op) {
+      case 'eq': return actual === value;
+      case 'neq': return actual !== value;
+      case 'gt': return typeof actual === 'number' && typeof value === 'number' && actual > value;
+      case 'gte': return typeof actual === 'number' && typeof value === 'number' && actual >= value;
+      case 'lt': return typeof actual === 'number' && typeof value === 'number' && actual < value;
+      case 'lte': return typeof actual === 'number' && typeof value === 'number' && actual <= value;
+      case 'contains': return typeof actual === 'string' && typeof value === 'string' && actual.includes(value);
+      case 'not_contains': return typeof actual === 'string' && typeof value === 'string' && !actual.includes(value);
+      case 'starts_with': return typeof actual === 'string' && typeof value === 'string' && actual.startsWith(value);
+      case 'ends_with': return typeof actual === 'string' && typeof value === 'string' && actual.endsWith(value);
+      case 'regex': return typeof actual === 'string' && typeof value === 'string' && new RegExp(value).test(actual);
+      case 'in': return Array.isArray(value) && value.includes(actual);
+      case 'not_in': return Array.isArray(value) && !value.includes(actual);
+      case 'exists': return actual !== undefined && actual !== null;
+      case 'not_exists': return actual === undefined || actual === null;
+      default: return false;
+    }
+  }
 
   // Timer mocks
   const setTimeout = (callback: () => void, delay = 0): number => {
@@ -384,6 +554,20 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     randomUUID: () => (webcrypto as unknown as Crypto).randomUUID(),
   };
 
+  // Model API mock (generate / summarize routed to backend in production)
+  const model = {
+    generate: (prompt: string, _options?: { maxTokens?: number; temperature?: number }): string => {
+      state.modelCalls.push({ type: 'generate', prompt });
+      const mockResponse = state.modelResponses.shift();
+      return mockResponse ?? `[mock generate response for: ${prompt}]`;
+    },
+    summarize: (text: string, _options?: { maxTokens?: number }): string => {
+      state.modelCalls.push({ type: 'summarize', text });
+      const mockResponse = state.modelResponses.shift();
+      return mockResponse ?? `[mock summary of: ${text.slice(0, 50)}...]`;
+    },
+  };
+
   // Mock Buffer class
   const { Buffer: NodeBuffer } = await import('buffer');
 
@@ -396,8 +580,9 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     data,
     cron,
     skills,
-    model,
     oauth,
+    hooks,
+    model,
     setTimeout,
     setInterval,
     clearTimeout,
@@ -474,6 +659,7 @@ export async function createBridgeAPIs(options?: BridgeOptions): Promise<Record<
     onSetOption: undefined,
     onOAuthComplete: undefined,
     onOAuthRevoked: undefined,
+    onHookTriggered: undefined,
     // Cleanup hook for persistent DB
     __cleanup: () => {
       if (persistentDb) {

@@ -163,7 +163,7 @@ function init(): void {
 
 // ─── Lifecycle: start() ─────────────────────────────────────────────
 // Called when the skill should begin active work.
-// Register cron schedules and publish initial state.
+// Register cron schedules, hooks, and publish initial state.
 function start(): void {
   const s = getState();
   s.isRunning = true;
@@ -171,6 +171,32 @@ function start(): void {
   // Register a cron schedule for periodic data fetching
   // 6-field syntax: seconds minutes hours day month dow
   cron.register('refresh', `*/${s.config.refreshInterval} * * * * *`);
+
+  // ─── Hook Registration Example ─────────────────────────────────────
+  // Register a hook to react to Telegram messages in monitored chats.
+  // The hook uses declarative filters evaluated by the Rust runtime —
+  // no JS callback per event, so it's efficient at scale.
+  //
+  // hooks.register({
+  //   id: 'watch-messages',
+  //   description: 'Watch for message bursts in monitored chats',
+  //   filter: {
+  //     event_types: ['telegram.message.received'],
+  //     entities: {
+  //       chat: { ids: ['12345', '67890'] },        // user-configured chat IDs
+  //     },
+  //     data_match: [
+  //       { path: 'is_outgoing', op: 'eq', value: false },  // only incoming
+  //     ],
+  //   },
+  //   accumulate: {
+  //     count: 5,              // fire after 5 messages
+  //     window_ms: 30000,      // within a 30-second window
+  //     group_by: 'entities.chat.id',  // per-chat batching
+  //     reset_on_fire: true,
+  //   },
+  // });
+  // ───────────────────────────────────────────────────────────────────
 
   // Publish initial state to the frontend
   publishState();
@@ -389,6 +415,30 @@ function onSetupCancel(): void {
   s.config = { ...DEFAULT_CONFIG };
 }
 
+// ─── Lifecycle: onHookTriggered ──────────────────────────────────────
+// Called when a registered hook's filter matches and accumulation
+// conditions are met. Return actions for the runtime/frontend.
+//
+// function onHookTriggered(args: HookTriggeredArgs): HookActionResult {
+//   const messages = args.events
+//     .map(e => e.data.text as string)
+//     .filter(Boolean);
+//
+//   console.log(
+//     `[example-skill] Hook "${args.hookId}" fired with ${args.eventCount} events`
+//   );
+//
+//   return {
+//     actions: [{
+//       type: 'notify',
+//       payload: {
+//         title: 'Message Burst Detected',
+//         body: `${args.eventCount} messages in chat ${args.groupKey}`,
+//       },
+//     }],
+//   };
+// }
+
 // ─── Disconnect ─────────────────────────────────────────────────────
 function onDisconnect(): void {
   // Clean up credentials when user disconnects the skill
@@ -485,3 +535,4 @@ _g.onSetOption = onSetOption;
 _g.onSessionStart = onSessionStart;
 _g.onSessionEnd = onSessionEnd;
 _g.onDisconnect = onDisconnect;
+// _g.onHookTriggered = onHookTriggered;  // Uncomment when hook handler is implemented

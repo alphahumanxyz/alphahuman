@@ -530,12 +530,7 @@ const skill: Skill = {
     auto_start: false,
     setup: { required: true, label: 'Example Skill' },
   },
-  tools: [
-    // getStatusTool,
-    // fetchDataTool,
-    // queryLogsTool,
-    // listPeersTool,
-  ],
+  tools: tools as ToolDefinition[],
   init,
   start,
   stop,

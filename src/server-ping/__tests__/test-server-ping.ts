@@ -1,37 +1,19 @@
 // test-server-ping.ts — Comprehensive tests for the server-ping skill.
 // Runs via the V8 test harness.
-
-// All globals (describe, it, assert*, setupSkillTest, callTool, etc.)
-// are available from the harness scripts loaded before this file.
-
-// Helpers to access the typed globals
-const _describe = (globalThis as any).describe as (name: string, fn: () => void) => void;
-const _it = (globalThis as any).it as (name: string, fn: () => void) => void;
-const _assert = (globalThis as any).assert as (cond: unknown, msg?: string) => void;
-const _assertEqual = (globalThis as any).assertEqual as (
-  a: unknown,
-  b: unknown,
-  msg?: string
-) => void;
-const _assertNotNull = (globalThis as any).assertNotNull as (v: unknown, msg?: string) => void;
-const _assertContains = (globalThis as any).assertContains as (
-  h: string,
-  n: string,
-  msg?: string
-) => void;
-const _assertGreaterThan = (globalThis as any).assertGreaterThan as (
-  a: number,
-  b: number,
-  msg?: string
-) => void;
-const _setup = (globalThis as any).setupSkillTest as (opts?: any) => void;
-const _callTool = (globalThis as any).callTool as (name: string, args?: any) => any;
-const _getMockState = (globalThis as any).getMockState as () => any;
-const _mockFetchResponse = (globalThis as any).mockFetchResponse as (
-  url: string,
-  status: number,
-  body: string
-) => void;
+import {
+  _assert,
+  _assertContains,
+  _assertEqual,
+  _assertGreaterThan,
+  _assertNotNull,
+  _describe,
+  _it,
+  _mockFetchError,
+  _mockFetchResponse,
+  _setup,
+  _callTool,
+  _getMockState,
+} from '../../test-harness-globals';
 
 // Default clean config to reset skill state between tests.
 // Since the skill uses module-level CONFIG that persists across calls,
@@ -43,8 +25,6 @@ const CLEAN_CONFIG = {
   notifyOnRecover: true,
   verboseLogging: false,
 };
-
-const _mockFetchError = (globalThis as any).mockFetchError as (url: string, msg?: string) => void;
 
 /** Reset mocks + re-init with clean defaults. Call before each test group. */
 function freshInit(overrides?: {

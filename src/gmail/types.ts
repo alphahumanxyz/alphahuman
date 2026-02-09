@@ -7,6 +7,10 @@ export interface SkillConfig {
   syncIntervalMinutes: number;
   maxEmailsPerSync: number;
   notifyOnNewEmails: boolean;
+  /** Set by tests / OAuth flow */
+  isAuthenticated?: boolean;
+  /** Set by tests / OAuth flow */
+  clientId?: string;
 }
 
 export interface GmailProfile {

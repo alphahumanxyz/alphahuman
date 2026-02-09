@@ -3,6 +3,54 @@
  * Covers all lifecycle hooks, setup flow, options, tools, and error handling.
  */
 import type { ExampleConfig } from '../types';
+import {
+  _assertEqual,
+  _assertFalse,
+  _assertNotNull,
+  _assertNull,
+  _assertTrue,
+  _describe,
+  _it,
+  _setup,
+  _callTool,
+  _getMockState,
+  _mockFetchError,
+} from '../../test-harness-globals';
+
+const g = globalThis as Record<string, unknown>;
+const setupSkillTest = _setup;
+const getMockState = _getMockState;
+const callTool = _callTool;
+const mockFetchError = _mockFetchError;
+const init = g.init as () => void;
+const start = g.start as () => void;
+const stop = g.stop as () => void;
+const onSetupStart = g.onSetupStart as () => { step: { id: string; fields: unknown[] } };
+const onSetupSubmit = g.onSetupSubmit as (args: {
+  stepId: string;
+  values: Record<string, unknown>;
+}) => {
+  status: string;
+  errors?: string[];
+  nextStep?: { id: string; step?: { id: string; fields: unknown[] } };
+};
+const onSetupCancel = g.onSetupCancel as () => void;
+interface SkillOption {
+  name: string;
+  id?: string;
+  label?: string;
+  value?: unknown;
+}
+const onListOptions = g.onListOptions as () => { options: SkillOption[] };
+const onSetOption = g.onSetOption as (arg: { name: string; value?: unknown }) => void;
+const onCronTrigger = g.onCronTrigger as (scheduleId: string) => void;
+const onDisconnect = g.onDisconnect as () => void;
+const getSkillState = g.getSkillState as () => {
+  config: ExampleConfig;
+  fetchCount?: number;
+  errorCount?: number;
+  lastFetchTime?: string;
+};
 
 const DEFAULT_CONFIG: ExampleConfig = {
   serverUrl: '',
@@ -41,14 +89,14 @@ _describe('init()', () => {
 
   _it('should load config from store', () => {
     freshInit({ serverUrl: 'https://saved.example.com', apiKey: 'saved-key' });
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.serverUrl, 'https://saved.example.com');
     _assertEqual(s.config.apiKey, 'saved-key');
   });
 
   _it('should use defaults when no saved config', () => {
     freshInit();
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.serverUrl, '');
     _assertEqual(s.config.refreshInterval, 30);
     _assertTrue(s.config.notifyOnError);
@@ -102,7 +150,7 @@ _describe('stop()', () => {
 _describe('Setup Flow', () => {
   _it('should return credentials step on start', () => {
     freshInit();
-    const _result = callTool('get-status', {});
+    callTool('get-status', {});
     // Now test setup
     const step1 = onSetupStart();
     _assertEqual(step1.step.id, 'credentials');
@@ -155,7 +203,7 @@ _describe('Setup Flow', () => {
     _assertEqual(r3.status, 'complete');
 
     // Verify config was saved
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.serverUrl, MOCK_URL);
     _assertEqual(s.config.refreshInterval, 60);
   });
@@ -163,7 +211,7 @@ _describe('Setup Flow', () => {
   _it('should reset config on cancel', () => {
     freshInit({ serverUrl: MOCK_URL, apiKey: 'key' });
     onSetupCancel();
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.serverUrl, '');
     _assertEqual(s.config.apiKey, '');
   });
@@ -188,7 +236,7 @@ _describe('Options', () => {
 
     onSetOption({ name: 'refreshInterval', value: '60' });
 
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.refreshInterval, 60);
 
     const ms = getMockState();
@@ -198,7 +246,7 @@ _describe('Options', () => {
   _it('should toggle notifyOnError', () => {
     freshInit({ serverUrl: MOCK_URL, apiKey: 'key', notifyOnError: true });
     onSetOption({ name: 'notifyOnError', value: false });
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertFalse(s.config.notifyOnError);
   });
 });
@@ -263,7 +311,7 @@ _describe('onCronTrigger', () => {
     start();
     onCronTrigger('refresh');
 
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.fetchCount, 1);
     _assertEqual(s.errorCount, 0);
     _assertNotNull(s.lastFetchTime);
@@ -275,7 +323,7 @@ _describe('onCronTrigger', () => {
     mockFetchError(MOCK_URL, 'Server down');
     onCronTrigger('refresh');
 
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.errorCount, 1);
     _assertEqual(s.fetchCount, 0);
 
@@ -297,7 +345,7 @@ _describe('onCronTrigger', () => {
     freshInit();
     start();
     onCronTrigger('refresh');
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.fetchCount, 0);
   });
 });
@@ -312,7 +360,7 @@ _describe('onDisconnect', () => {
     const ms = getMockState();
     _assertNull(ms.store['config'] ?? null);
 
-    const s = globalThis.getSkillState();
+    const s = getSkillState();
     _assertEqual(s.config.serverUrl, '');
   });
 });

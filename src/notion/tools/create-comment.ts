@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const createCommentTool: ToolDefinition = {
-  name: 'notion-create-comment',
+  name: 'create-comment',
   description:
     'Create a comment on a page or in a discussion thread. ' +
     'Must specify either page_id (for new discussion) or discussion_id (to reply).',

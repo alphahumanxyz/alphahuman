@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const queryDatabaseTool: ToolDefinition = {
-  name: 'notion-query-database',
+  name: 'query-database',
   description: 'Query a database with optional filters and sorts. Returns database rows/pages.',
   input_schema: {
     type: 'object',

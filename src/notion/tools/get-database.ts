@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getDatabaseTool: ToolDefinition = {
-  name: 'notion-get-database',
+  name: 'get-database',
   description: "Get a database's schema and metadata. Shows all properties and their types.",
   input_schema: {
     type: 'object',

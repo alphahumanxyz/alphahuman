@@ -6,7 +6,7 @@ import { getContacts } from '../db-helpers';
  * Get contacts tool definition.
  */
 export const getContactsToolDefinition: ToolDefinition = {
-  name: 'telegram-get-contacts',
+  name: 'get-contacts',
   description:
     'Get Telegram contacts and users. Can filter to show only saved contacts or search by name/username. ' +
     'Returns user profiles including status, premium status, and bot flag.',

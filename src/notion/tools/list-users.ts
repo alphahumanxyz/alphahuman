@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const listUsersTool: ToolDefinition = {
-  name: 'notion-list-users',
+  name: 'list-users',
   description: 'List all users in the workspace that the integration can see.',
   input_schema: {
     type: 'object',

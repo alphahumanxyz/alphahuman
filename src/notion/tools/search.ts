@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const searchTool: ToolDefinition = {
-  name: 'notion-search',
+  name: 'search',
   description:
     'Search for pages and databases in your Notion workspace. ' +
     'Can filter by type (page or database) and returns matching results.',

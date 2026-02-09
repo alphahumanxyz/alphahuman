@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const updatePageTool: ToolDefinition = {
-  name: 'notion-update-page',
+  name: 'update-page',
   description:
     "Update a page's properties. Can update title and other properties. " +
     'Use notion-append-text to add content blocks.',

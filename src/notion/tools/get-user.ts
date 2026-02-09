@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getUserTool: ToolDefinition = {
-  name: 'notion-get-user',
+  name: 'get-user',
   description: 'Get a user by their ID.',
   input_schema: {
     type: 'object',

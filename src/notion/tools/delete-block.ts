@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const deleteBlockTool: ToolDefinition = {
-  name: 'notion-delete-block',
+  name: 'delete-block',
   description: 'Delete a block. This permanently removes the block from Notion.',
   input_schema: {
     type: 'object',

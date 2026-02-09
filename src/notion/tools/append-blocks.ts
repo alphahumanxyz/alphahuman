@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const appendBlocksTool: ToolDefinition = {
-  name: 'notion-append-blocks',
+  name: 'append-blocks',
   description: 'Append child blocks to a page or block. Supports various block types.',
   input_schema: {
     type: 'object',

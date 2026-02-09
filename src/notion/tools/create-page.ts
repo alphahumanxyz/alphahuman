@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const createPageTool: ToolDefinition = {
-  name: 'notion-create-page',
+  name: 'create-page',
   description:
     'Create a new page in Notion. Parent can be another page or a database. ' +
     'For database parents, properties must match the database schema.',

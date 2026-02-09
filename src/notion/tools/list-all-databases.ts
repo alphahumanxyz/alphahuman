@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const listAllDatabasesTool: ToolDefinition = {
-  name: 'notion-list-all-databases',
+  name: 'list-all-databases',
   description: 'List all databases in the workspace that the integration has access to.',
   input_schema: {
     type: 'object',

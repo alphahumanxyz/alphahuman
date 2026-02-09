@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const updateBlockTool: ToolDefinition = {
-  name: 'notion-update-block',
+  name: 'update-block',
   description: "Update a block's content. The structure depends on the block type.",
   input_schema: {
     type: 'object',

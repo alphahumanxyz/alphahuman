@@ -11,7 +11,7 @@ const n = (): NotionGlobals => {
 };
 
 export const searchLocalTool: ToolDefinition = {
-  name: 'notion-search-local',
+  name: 'search-local',
   description:
     'Search locally synced Notion pages, databases, and database rows by title or content. ' +
     'Much faster than API search — queries the local SQLite cache. ' +

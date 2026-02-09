@@ -3,7 +3,7 @@
 import '../skill-state';
 
 export const summarizePagesTool: ToolDefinition = {
-  name: 'notion-summarize-pages',
+  name: 'summarize-pages',
   description:
     'AI summarization of Notion pages is now handled by the backend server. ' +
     'Synced page content is submitted to the server which runs summarization.',

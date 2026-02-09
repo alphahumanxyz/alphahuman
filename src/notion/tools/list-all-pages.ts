@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const listAllPagesTool: ToolDefinition = {
-  name: 'notion-list-all-pages',
+  name: 'list-all-pages',
   description: 'List all pages in the workspace that the integration has access to.',
   input_schema: {
     type: 'object',

@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getPageContentTool: ToolDefinition = {
-  name: 'notion-get-page-content',
+  name: 'get-page-content',
   description:
     'Get the content blocks of a page. Returns the text and structure of the page. ' +
     'Use recursive=true to also get nested blocks.',

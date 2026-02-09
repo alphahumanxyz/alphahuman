@@ -6,7 +6,7 @@ import { getChatStats, getContacts } from '../db-helpers';
  * Get chat stats tool definition.
  */
 export const getChatStatsToolDefinition: ToolDefinition = {
-  name: 'telegram-get-chat-stats',
+  name: 'get-chat-stats',
   description:
     'Get detailed statistics for a Telegram chat. Returns message counts, content type breakdown, ' +
     'top senders, and activity date range. Useful for understanding chat activity and composition.',

@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const deletePageTool: ToolDefinition = {
-  name: 'notion-delete-page',
+  name: 'delete-page',
   description: "Delete (archive) a page. Archived pages can be restored from Notion's trash.",
   input_schema: {
     type: 'object',

@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const updateDatabaseTool: ToolDefinition = {
-  name: 'notion-update-database',
+  name: 'update-database',
   description: "Update a database's title or properties schema.",
   input_schema: {
     type: 'object',

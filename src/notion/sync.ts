@@ -403,6 +403,10 @@ function syncDatabaseRows(): void {
     return;
   }
 
+  const s = globalThis.getNotionSkillState();
+  const lastSyncTime = s.syncStatus.lastSyncTime;
+  const isFirstSync = lastSyncTime === 0;
+
   let totalRowCount = 0;
   let totalSkipped = 0;
   let totalErrors = 0;
@@ -415,8 +419,9 @@ function syncDatabaseRows(): void {
       let rowCount = 0;
       let skipped = 0;
       let fetched = 0;
+      let reachedOldRows = false;
 
-      while (hasMore && fetched < MAX_ROWS_PER_DATABASE) {
+      while (hasMore && fetched < MAX_ROWS_PER_DATABASE && !reachedOldRows) {
         const body: Record<string, unknown> = {
           page_size: 100,
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
@@ -446,6 +451,15 @@ function syncDatabaseRows(): void {
         for (const row of result.results) {
           const rec = row as Record<string, unknown>;
           const lastEdited = rec.last_edited_time as string;
+
+          // Incremental: stop when we reach rows older than last sync
+          if (!isFirstSync && lastEdited) {
+            const editedMs = new Date(lastEdited).getTime();
+            if (editedMs <= lastSyncTime) {
+              reachedOldRows = true;
+              break;
+            }
+          }
 
           // Skip if unchanged
           const existing = getDatabaseRowById?.(rec.id as string);

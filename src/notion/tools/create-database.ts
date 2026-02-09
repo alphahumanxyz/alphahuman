@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const createDatabaseTool: ToolDefinition = {
-  name: 'notion-create-database',
+  name: 'create-database',
   description: 'Create a new database in Notion. Must specify parent page and property schema.',
   input_schema: {
     type: 'object',

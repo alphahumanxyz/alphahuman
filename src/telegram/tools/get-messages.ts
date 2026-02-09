@@ -6,7 +6,7 @@ import { getMessages } from '../db-helpers';
  * Get messages tool definition.
  */
 export const getMessagesToolDefinition: ToolDefinition = {
-  name: 'telegram-get-messages',
+  name: 'get-messages',
   description:
     'Get messages from a specific Telegram chat. Supports filtering by content type, text search, and pagination. ' +
     'Returns messages in reverse chronological order (newest first).',

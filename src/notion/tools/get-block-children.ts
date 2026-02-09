@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getBlockChildrenTool: ToolDefinition = {
-  name: 'notion-get-block-children',
+  name: 'get-block-children',
   description: 'Get the children blocks of a block or page.',
   input_schema: {
     type: 'object',

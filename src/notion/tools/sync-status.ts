@@ -3,7 +3,7 @@
 import '../skill-state';
 
 export const syncStatusTool: ToolDefinition = {
-  name: 'notion-sync-status',
+  name: 'sync-status',
   description:
     'Get the current Notion sync status including last sync time, ' +
     'total synced pages/databases/users, sync progress, and any errors.',

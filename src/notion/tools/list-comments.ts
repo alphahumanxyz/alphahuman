@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const listCommentsTool: ToolDefinition = {
-  name: 'notion-list-comments',
+  name: 'list-comments',
   description: 'List comments on a block or page.',
   input_schema: {
     type: 'object',

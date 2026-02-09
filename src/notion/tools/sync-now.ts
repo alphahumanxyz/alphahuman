@@ -12,7 +12,7 @@ const n = (): NotionGlobals => {
 };
 
 export const syncNowTool: ToolDefinition = {
-  name: 'notion-sync-now',
+  name: 'sync-now',
   description:
     'Trigger an immediate Notion sync to refresh local data. ' +
     'Returns sync results including counts of synced pages, databases, and users.',

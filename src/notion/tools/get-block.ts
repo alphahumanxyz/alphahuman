@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getBlockTool: ToolDefinition = {
-  name: 'notion-get-block',
+  name: 'get-block',
   description: "Get a block by its ID. Returns the block's type and content.",
   input_schema: {
     type: 'object',

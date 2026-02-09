@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const appendTextTool: ToolDefinition = {
-  name: 'notion-append-text',
+  name: 'append-text',
   description:
     'Append text content to a page or block. Creates paragraph blocks with the given text.',
   input_schema: {

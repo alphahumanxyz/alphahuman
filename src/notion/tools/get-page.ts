@@ -19,7 +19,7 @@ const getApi = (): NotionApi => {
 };
 
 export const getPageTool: ToolDefinition = {
-  name: 'notion-get-page',
+  name: 'get-page',
   description:
     "Get a page's metadata and properties by its ID. " +
     'Use notion-get-page-content to get the actual content/blocks.',

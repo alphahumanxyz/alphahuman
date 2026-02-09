@@ -599,6 +599,36 @@ export async function createBridgeAPIs(
       emit: (): number => 0,
       getAccumulationState: (): unknown => null,
     },
+    // Model API - routes to backend in live mode
+    model: {
+      generate: (prompt: string, options?: { maxTokens?: number; temperature?: number }): string => {
+        const body: Record<string, unknown> = { prompt };
+        if (options?.maxTokens) body.maxTokens = options.maxTokens;
+        if (options?.temperature) body.temperature = options.temperature;
+        const resp = realFetch(`${backendUrl}/api/ai/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify(body),
+          timeout: 30000,
+        });
+        if (resp.status >= 400) throw new Error(`Backend returned ${resp.status}: ${resp.body}`);
+        const data = JSON.parse(resp.body);
+        return data.text || '';
+      },
+      summarize: (text: string, options?: { maxTokens?: number }): string => {
+        const body: Record<string, unknown> = { text };
+        if (options?.maxTokens) body.maxTokens = options.maxTokens;
+        const resp = realFetch(`${backendUrl}/api/ai/summarize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify(body),
+          timeout: 30000,
+        });
+        if (resp.status >= 400) throw new Error(`Backend returned ${resp.status}: ${resp.body}`);
+        const data = JSON.parse(resp.body);
+        return data.summary || '';
+      },
+    },
     setTimeout,
     setInterval,
     clearTimeout,

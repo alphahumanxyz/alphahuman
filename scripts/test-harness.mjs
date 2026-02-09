@@ -165,6 +165,12 @@ function createBridgeAPIs() {
       revoke: () => true,
     },
 
+    // Model API (generate/summarize)
+    model: {
+      generate: (prompt, options) => '[mock generate response]',
+      summarize: (text, options) => '[mock summary]',
+    },
+
     // Console
     console: {
       log: (...args) => {

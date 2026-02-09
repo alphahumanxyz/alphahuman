@@ -96,7 +96,6 @@ function stop(): void {
 
   // Persist config
   state.set('config', s.config);
-
   state.set('status', 'stopped');
   console.log('[notion] Stopped');
 }

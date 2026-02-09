@@ -115,16 +115,12 @@ function syncUsers(): void {
   let hasMore = true;
   let count = 0;
 
-  // Collect all user records for emitting after sync
-  const allUsers: Array<Record<string, unknown>> = [];
-
   while (hasMore) {
     const result = notionApi.listUsers(100, startCursor);
 
     for (const user of result.results) {
       try {
         upsertUser(user as Record<string, unknown>);
-        allUsers.push(user as Record<string, unknown>);
         count++;
       } catch (e) {
         console.error(
@@ -135,29 +131,6 @@ function syncUsers(): void {
 
     hasMore = result.has_more;
     startCursor = (result.next_cursor as string | undefined) || undefined;
-  }
-
-  // Emit user data to frontend with all relevant fields
-  if (allUsers.length > 0) {
-    const usersPayload = allUsers.map(u => {
-      const person = u.person as Record<string, unknown> | undefined;
-      const bot = u.bot as Record<string, unknown> | undefined;
-      return {
-        id: u.id as string,
-        name: (u.name as string) || '(Unknown)',
-        type: (u.type as string) || 'person',
-        email: (person?.email as string) || null,
-        avatarUrl: (u.avatar_url as string) || null,
-        // Bot-specific fields
-        botOwnerType: bot ? ((bot.owner as Record<string, unknown>)?.type as string) || null : null,
-        botWorkspaceId: bot
-          ? ((bot.owner as Record<string, unknown>)?.workspace as boolean)
-            ? 'workspace'
-            : null
-          : null,
-      };
-    });
-    state.set('users', usersPayload);
   }
 
   console.log(`[notion] Synced ${count} users`);

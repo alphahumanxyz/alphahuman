@@ -2,20 +2,20 @@
  * Comprehensive tests for example-skill.
  * Covers all lifecycle hooks, setup flow, options, tools, and error handling.
  */
-import type { ExampleConfig } from '../types';
 import {
   _assertEqual,
   _assertFalse,
   _assertNotNull,
   _assertNull,
   _assertTrue,
-  _describe,
-  _it,
-  _setup,
   _callTool,
+  _describe,
   _getMockState,
+  _it,
   _mockFetchError,
+  _setup,
 } from '../../test-harness-globals';
+import type { ExampleConfig } from '../types';
 
 const g = globalThis as Record<string, unknown>;
 const setupSkillTest = _setup;

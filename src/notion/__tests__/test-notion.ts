@@ -6,12 +6,12 @@ import {
   _assertContains,
   _assertEqual,
   _assertNotNull,
-  _describe,
-  _it,
-  _setup,
   _callTool,
+  _describe,
   _getMockState,
+  _it,
   _mockFetchResponse,
+  _setup,
 } from '../../test-harness-globals';
 
 // Mock Notion API responses

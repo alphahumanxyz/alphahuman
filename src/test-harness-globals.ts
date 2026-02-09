@@ -11,11 +11,7 @@ export const _it = g.it as (name: string, fn: () => void) => void;
 export const _assert = g.assert as (cond: unknown, msg?: string) => void;
 export const _assertEqual = g.assertEqual as (a: unknown, b: unknown, msg?: string) => void;
 export const _assertNotNull = g.assertNotNull as (v: unknown, msg?: string) => void;
-export const _assertContains = g.assertContains as (
-  h: string,
-  n: string,
-  msg?: string
-) => void;
+export const _assertContains = g.assertContains as (h: string, n: string, msg?: string) => void;
 export const _assertTrue = g.assertTrue as (v: unknown, msg?: string) => void;
 export const _assertNull = g.assertNull as (v: unknown, msg?: string) => void;
 export const _assertFalse = g.assertFalse as (v: unknown, msg?: string) => void;

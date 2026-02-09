@@ -5,15 +5,14 @@ import {
   _assertContains,
   _assertEqual,
   _assertNotNull,
+  _callTool,
   _describe,
+  _getMockState,
   _it,
   _mockFetchError,
   _mockFetchResponse,
   _setup,
-  _callTool,
-  _getMockState,
 } from '../../test-harness-globals';
-
 import { getGmailSkillState } from '../skill-state';
 
 const g = globalThis as Record<string, unknown>;

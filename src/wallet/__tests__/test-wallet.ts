@@ -12,12 +12,12 @@ import {
   _assertEqual,
   _assertNotNull,
   _assertTrue,
+  _callTool,
   _describe,
+  _getMockState,
   _it,
   _mockFetchResponse,
   _setup,
-  _callTool,
-  _getMockState,
 } from '../../test-harness-globals';
 
 const MOCK_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e';

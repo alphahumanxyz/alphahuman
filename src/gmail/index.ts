@@ -416,9 +416,16 @@ function performSync(): void {
 function publishSkillState(): void {
   const s = globalThis.getGmailSkillState();
   const credential = oauth.getCredential();
+  const isConnected = !!credential;
 
   state.setPartial({
-    connected: !!credential,
+    // Standard SkillHostConnectionState fields
+    connection_status: isConnected ? 'connected' : 'disconnected',
+    auth_status: isConnected ? 'authenticated' : 'not_authenticated',
+    connection_error: s.lastApiError || null,
+    auth_error: null,
+    is_initialized: isConnected,
+    // Skill-specific fields
     userEmail: s.config.userEmail,
     syncEnabled: s.config.syncEnabled,
     syncInProgress: s.syncStatus.syncInProgress,

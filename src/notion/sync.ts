@@ -1036,9 +1036,16 @@ function syncSummariesToServer(): void {
 
 function publishSyncState(): void {
   const s = globalThis.getNotionSkillState();
+  const isConnected = !!oauth.getCredential();
 
   state.setPartial({
-    connected: !!oauth.getCredential(),
+    // Standard SkillHostConnectionState fields
+    connection_status: isConnected ? 'connected' : 'disconnected',
+    auth_status: isConnected ? 'authenticated' : 'not_authenticated',
+    connection_error: s.syncStatus.lastSyncError || null,
+    auth_error: null,
+    is_initialized: isConnected,
+    // Skill-specific fields
     workspaceName: s.config.workspaceName || null,
     syncInProgress: s.syncStatus.syncInProgress,
     lastSyncTime: s.syncStatus.lastSyncTime

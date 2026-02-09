@@ -27,33 +27,8 @@ import {
 import './skill-state';
 import type { NotionSkillConfig } from './skill-state';
 import './sync';
-import { appendBlocksTool } from './tools/append-blocks';
-import { appendTextTool } from './tools/append-text';
-import { createCommentTool } from './tools/create-comment';
-import { createDatabaseTool } from './tools/create-database';
-import { createPageTool } from './tools/create-page';
-import { deleteBlockTool } from './tools/delete-block';
-import { deletePageTool } from './tools/delete-page';
-import { getBlockTool } from './tools/get-block';
-import { getBlockChildrenTool } from './tools/get-block-children';
-import { getDatabaseTool } from './tools/get-database';
-import { getPageTool } from './tools/get-page';
-import { getPageContentTool } from './tools/get-page-content';
-import { getUserTool } from './tools/get-user';
-import { listAllDatabasesTool } from './tools/list-all-databases';
-import { listAllPagesTool } from './tools/list-all-pages';
-import { listCommentsTool } from './tools/list-comments';
-import { listUsersTool } from './tools/list-users';
-import { queryDatabaseTool } from './tools/query-database';
-// Import tools
-import { searchTool } from './tools/search';
-import { searchLocalTool } from './tools/search-local';
-import { summarizePagesTool } from './tools/summarize-pages';
-import { syncNowTool } from './tools/sync-now';
-import { syncStatusTool } from './tools/sync-status';
-import { updateBlockTool } from './tools/update-block';
-import { updateDatabaseTool } from './tools/update-database';
-import { updatePageTool } from './tools/update-page';
+import tools from './tools/index';
+
 
 // ---------------------------------------------------------------------------
 // Expose helpers on globalThis for tools to access at runtime
@@ -398,41 +373,7 @@ const skill: Skill = {
     auto_start: false,
     setup: { required: true, label: 'Configure Notion' },
   },
-  tools: [
- // Pages
- searchTool,
- getPageTool,
- createPageTool,
- updatePageTool,
- deletePageTool,
- getPageContentTool,
- listAllPagesTool,
- appendTextTool,
- // Databases
- queryDatabaseTool,
- getDatabaseTool,
- createDatabaseTool,
- updateDatabaseTool,
- listAllDatabasesTool,
- // Blocks
- getBlockTool,
- getBlockChildrenTool,
- appendBlocksTool,
- updateBlockTool,
- deleteBlockTool,
- // Users
- listUsersTool,
- getUserTool,
- // Comments
- createCommentTool,
- listCommentsTool,
- // Local sync tools
- searchLocalTool,
- syncStatusTool,
- syncNowTool,
- // AI tools
- summarizePagesTool,
-  ],
+  tools,
   init,
   start,
   stop,
@@ -446,5 +387,7 @@ const skill: Skill = {
   onSetOption,
   publishState,
 };
+
+console.log('skill-tools', skill.tools);
 
 export default skill;

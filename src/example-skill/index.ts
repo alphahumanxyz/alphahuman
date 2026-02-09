@@ -18,7 +18,7 @@ function getState(): ExampleSkillState {
 // Each tool.execute() must return a JSON string.
 // NOTE: Tools are defined inline to avoid cross-module bundling issues.
 
-tools = [
+const tools = [
   // get-status — returns current skill status, config summary, and error count
   {
     name: 'get-status',
@@ -521,18 +521,34 @@ function publishState(): void {
 const _g = globalThis as Record<string, unknown>;
 _g.publishState = publishState;
 
-// Expose lifecycle hooks on globalThis so the REPL/runtime can call them.
-// esbuild IIFE bundling traps function declarations in the closure scope.
-_g.init = init;
-_g.start = start;
-_g.stop = stop;
-_g.onCronTrigger = onCronTrigger;
-_g.onSetupStart = onSetupStart;
-_g.onSetupSubmit = onSetupSubmit;
-_g.onSetupCancel = onSetupCancel;
-_g.onListOptions = onListOptions;
-_g.onSetOption = onSetOption;
-_g.onSessionStart = onSessionStart;
-_g.onSessionEnd = onSessionEnd;
-_g.onDisconnect = onDisconnect;
-// _g.onHookTriggered = onHookTriggered;  // Uncomment when hook handler is implemented
+
+const skill: Skill = {
+  info: {
+    id: 'example-skill',
+    name: 'Example Skill',
+    version: '1.0.0',
+    description: 'A skill for testing the skill host',
+    auto_start: false,
+    setup: { required: true, label: 'Example Skill' },
+  },
+  tools: [
+    // getStatusTool,
+    // fetchDataTool,
+    // queryLogsTool,
+    // listPeersTool,
+  ],
+  init,
+  start,
+  stop,
+  onCronTrigger,
+  onSessionStart,
+  onSessionEnd,
+  onSetupStart,
+  onSetupSubmit,
+  onSetupCancel,
+  onDisconnect,
+  onListOptions,
+  onSetOption,
+};
+
+export default skill;

@@ -141,8 +141,8 @@ interface ModelSummarizeOptions {
 // Tools (assigned by skills on globalThis)
 // ---------------------------------------------------------------------------
 
-/** Tool definitions exposed to the AI and other skills. */
-declare let tools: ToolDefinition[];
+// /** Tool definitions exposed to the AI and other skills. */
+// declare let tools: ToolDefinition[];
 
 // ---------------------------------------------------------------------------
 // QuickJS Runtime Globals (available at runtime but not in TypeScript by default)

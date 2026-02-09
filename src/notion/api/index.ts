@@ -33,12 +33,12 @@ import type {
 } from '@notionhq/client/build/src/api-endpoints';
 
 // Side-effect imports — trigger module initialization
-import './blocks';
-import './comments';
-import './databases';
-import './pages';
-import './search';
-import './users';
+import { getDatabase, resolveDataSourceId, getDataSource, queryDataSource, createDatabase, updateDatabase, listAllDatabases } from './databases';
+import { getPage, createPage, updatePage, archivePage, getPageContent } from './pages';
+import { getBlock, getBlockChildren, appendBlockChildren, updateBlock, deleteBlock } from './blocks';
+import { getUser, listUsers } from './users';
+import { createComment, listComments } from './comments';
+import { search } from './search';
 
 export interface NotionApi {
   // pages
@@ -77,31 +77,31 @@ const _e = (globalThis as unknown as { exports: Record<string, unknown> }).expor
 
 export const notionApi: NotionApi = {
   // pages
-  getPage: _e.getPage,
-  createPage: _e.createPage,
-  updatePage: _e.updatePage,
-  archivePage: _e.archivePage,
-  getPageContent: _e.getPageContent,
+  getPage: getPage,
+  createPage: createPage,
+  updatePage: updatePage,
+  archivePage: archivePage,
+  getPageContent: getPageContent,
   // databases
-  getDatabase: _e.getDatabase,
-  resolveDataSourceId: _e.resolveDataSourceId,
-  getDataSource: _e.getDataSource,
-  queryDataSource: _e.queryDataSource,
-  createDatabase: _e.createDatabase,
-  updateDatabase: _e.updateDatabase,
-  listAllDatabases: _e.listAllDatabases,
+  getDatabase: getDatabase,
+  resolveDataSourceId: resolveDataSourceId,
+  getDataSource: getDataSource,
+  queryDataSource: queryDataSource,
+  createDatabase: createDatabase,
+  updateDatabase: updateDatabase,
+  listAllDatabases: listAllDatabases,
   // blocks
-  getBlock: _e.getBlock,
-  getBlockChildren: _e.getBlockChildren,
-  appendBlockChildren: _e.appendBlockChildren,
-  updateBlock: _e.updateBlock,
-  deleteBlock: _e.deleteBlock,
+  getBlock: getBlock,
+  getBlockChildren: getBlockChildren,
+  appendBlockChildren: appendBlockChildren,
+  updateBlock: updateBlock,
+  deleteBlock: deleteBlock,
   // users
-  getUser: _e.getUser,
-  listUsers: _e.listUsers,
+  getUser: getUser,
+  listUsers: listUsers,
   // comments
-  createComment: _e.createComment,
-  listComments: _e.listComments,
+  createComment: createComment,
+  listComments: listComments,
   // search
-  search: _e.search,
+  search: search,
 } as NotionApi;

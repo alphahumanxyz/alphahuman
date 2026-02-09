@@ -446,30 +446,36 @@ _g.performSync = performSync;
 _g.publishSkillState = publishSkillState;
 _g.loadGmailProfile = loadGmailProfile;
 
-// ---------------------------------------------------------------------------
-// Tool definitions
-// ---------------------------------------------------------------------------
 
-tools = [
-  getEmailsTool,
-  sendEmailTool,
-  getEmailTool,
-  getLabelsTool,
-  searchEmailsTool,
-  markEmailTool,
-  getProfileTool,
-];
+const skill: Skill = {
+  info: {
+    id: 'gmail',
+    name: 'Gmail',
+    version: '2.1.0', // Bumped for persistent storage
+    description: 'Gmail integration with persistent storage',
+    auto_start: false,
+    setup: { required: true, label: 'Configure Gmail' },
+  },
+  tools: [
+    getEmailsTool,
+    sendEmailTool,
+    getEmailTool,
+    getLabelsTool,
+    searchEmailsTool,
+    markEmailTool,
+    getProfileTool,
+  ],
+  init,
+  start,
+  stop,
+  onCronTrigger,
+  onSessionStart,
+  onSessionEnd,
+  onOAuthComplete,
+  onOAuthRevoked,
+  onDisconnect,
+  onListOptions,
+  onSetOption,
+};
 
-// Expose lifecycle hooks on globalThis so the REPL/runtime can call them.
-// esbuild IIFE bundling traps function declarations in the closure scope.
-_g.init = init;
-_g.start = start;
-_g.stop = stop;
-_g.onCronTrigger = onCronTrigger;
-_g.onSessionStart = onSessionStart;
-_g.onSessionEnd = onSessionEnd;
-_g.onOAuthComplete = onOAuthComplete;
-_g.onOAuthRevoked = onOAuthRevoked;
-_g.onDisconnect = onDisconnect;
-_g.onListOptions = onListOptions;
-_g.onSetOption = onSetOption;
+export default skill;

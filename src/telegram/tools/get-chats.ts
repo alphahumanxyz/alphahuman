@@ -72,3 +72,5 @@ export const getChatsToolDefinition: ToolDefinition = {
     }
   },
 };
+
+export default getChatsToolDefinition;

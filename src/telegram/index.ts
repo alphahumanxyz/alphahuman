@@ -13,12 +13,9 @@ import './sync';
 // Import TDLib client wrapper - this also assigns TdLibClient to globalThis
 import type { TdLibClient as TdLibClientType, TdUpdate, TdUser } from './tdlib-client';
 import './tdlib-client';
-import { getChatStatsToolDefinition } from './tools/get-chat-stats';
+import tools from './tools/index';
 // registers globalThis.telegramSync
 // Import tool definitions
-import { getChatsToolDefinition } from './tools/get-chats';
-import { getContactsToolDefinition } from './tools/get-contacts';
-import { getMessagesToolDefinition } from './tools/get-messages';
 // registers globalThis.telegramDb
 import './update-handlers';
 
@@ -897,22 +894,12 @@ const skill: Skill = {
   info: {
     id: 'telegram',
     name: 'Telegram',
-    runtime: 'v8',
-    entry: 'index.js',
     version: '2.1.0', // Bumped for persistent storage
     description: 'Telegram integration via TDLib with persistent storage',
     auto_start: false,
     setup: { required: true, label: 'Configure Telegram' },
   },
-  tools: [
-    telegramPingTool,
-    telegramStatusTool,
-    telegramSyncTool,
-    getChatsToolDefinition,
-    getMessagesToolDefinition,
-    getContactsToolDefinition,
-    getChatStatsToolDefinition,
-  ],
+  tools: [telegramPingTool, telegramStatusTool, telegramSyncTool, ...tools],
   init,
   start,
   stop,

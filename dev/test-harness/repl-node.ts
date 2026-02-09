@@ -149,7 +149,7 @@ function extractSkillExports(G: G): void {
     'init', 'start', 'stop', 'onCronTrigger', 'onSetupStart',
     'onSetupSubmit', 'onSetupCancel', 'onDisconnect',
     'onSessionStart', 'onSessionEnd', 'onListOptions', 'onSetOption',
-    'onOAuthComplete', 'onOAuthRevoked',
+    'onOAuthComplete', 'onOAuthRevoked', 'onHookTriggered',
   ];
   if (skill) {
     if (skill.tools) G.tools = skill.tools;

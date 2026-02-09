@@ -16,14 +16,12 @@ import { fileURLToPath } from 'url';
 
 import { type Socket, io } from 'socket.io-client';
 
-import { ModelBridge, type ModelGenerateOptions, type ModelSummarizeOptions } from './model-bridge';
 import { createPersistentData } from './persistent-data';
 import { createPersistentDb, type PersistentDb } from './persistent-db';
 import { createPersistentState } from './persistent-state';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = join(__dirname, '..', '..');
-const DEFAULT_MODEL_PATH = join(ROOT_DIR, '.models', 'gemma-3n-E2B-it-Q4_K_M.gguf');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,10 +30,6 @@ const DEFAULT_MODEL_PATH = join(ROOT_DIR, '.models', 'gemma-3n-E2B-it-Q4_K_M.ggu
 export interface LiveBridgeOptions {
   /** Directory for persistent file-backed storage (db, state, files) */
   dataDir: string;
-  /** Path to GGUF model file. Defaults to .models/gemma-3n-E2B-it-Q4_K_M.gguf */
-  modelPath?: string;
-  /** Set to false to skip model loading even if the file exists */
-  loadModel?: boolean;
   /** JWT token for authenticating with the backend API */
   jwtToken?: string;
   /** Backend API URL (default: https://api.alphahuman.xyz) */
@@ -411,68 +405,6 @@ export async function createBridgeAPIs(
     },
   };
 
-  // Model — real local LLM via ModelBridge (Worker + SharedArrayBuffer)
-  let modelBridge: ModelBridge | null = null;
-  const resolvedModelPath = options.modelPath ?? DEFAULT_MODEL_PATH;
-  const shouldLoadModel = options.loadModel !== false && existsSync(resolvedModelPath);
-
-  if (shouldLoadModel) {
-    globalThis.console.log(`[bootstrap-live] Loading model: ${resolvedModelPath}`);
-    modelBridge = new ModelBridge();
-    try {
-      await modelBridge.load(resolvedModelPath);
-      globalThis.console.log('[bootstrap-live] Model loaded successfully');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      globalThis.console.warn(`[bootstrap-live] Model failed to load: ${msg}`);
-      modelBridge = null;
-    }
-  } else if (options.loadModel !== false) {
-    globalThis.console.log(
-      `[bootstrap-live] Model not found at ${resolvedModelPath} — model API disabled`,
-    );
-    globalThis.console.log(
-      '[bootstrap-live] Run `yarn model:download` to enable local inference',
-    );
-  }
-
-  const model = {
-    isAvailable: (): boolean => modelBridge?.isAvailable() ?? false,
-    getStatus: (): Record<string, unknown> =>
-      modelBridge?.getStatus() ?? {
-        available: false,
-        loaded: false,
-        loading: false,
-        downloaded: existsSync(resolvedModelPath),
-      },
-    generate: (prompt: string, _options?: unknown): string => {
-      if (!modelBridge || !modelBridge.isAvailable()) {
-        throw new Error(
-          'Model not available. Run `yarn model:download` and restart.',
-        );
-      }
-      return modelBridge.generate(prompt, _options as ModelGenerateOptions | undefined);
-    },
-    summarize: (text: string, _options?: unknown): string => {
-      if (!modelBridge || !modelBridge.isAvailable()) {
-        throw new Error(
-          'Model not available. Run `yarn model:download` and restart.',
-        );
-      }
-      return modelBridge.summarize(text, _options as ModelSummarizeOptions | undefined);
-    },
-    submitSummary: (submission: Record<string, unknown>): void => {
-      const preview = String((submission as Record<string, string>).summary ?? '').substring(0, 80);
-      globalThis.console.log(`[model.submitSummary] "${preview}"`);
-      if (socket?.connected) {
-        socket.emit('summary:submit', submission);
-        globalThis.console.log('[model.submitSummary] Emitted via socket');
-      } else {
-        globalThis.console.warn('[model.submitSummary] Socket not connected — summary not sent');
-      }
-    },
-  };
-
   // OAuth — credential management and authenticated API proxy
   // Backend endpoints used:
   //   GET  /auth/:provider/connect        → { oauthUrl, state }
@@ -655,8 +587,48 @@ export async function createBridgeAPIs(
     data,
     cron,
     skills,
-    model,
     oauth,
+    // Hooks API stub - in live mode, hooks are handled by the Rust runtime.
+    // This stub allows skills using hooks to load without errors.
+    hooks: {
+      register: (): boolean => { globalThis.console.log('[hooks] register (live stub)'); return true; },
+      unregister: (): boolean => { globalThis.console.log('[hooks] unregister (live stub)'); return true; },
+      update: (): boolean => { globalThis.console.log('[hooks] update (live stub)'); return true; },
+      setEnabled: (): boolean => { globalThis.console.log('[hooks] setEnabled (live stub)'); return true; },
+      list: (): unknown[] => [],
+      emit: (): number => 0,
+      getAccumulationState: (): unknown => null,
+    },
+    // Model API - routes to backend in live mode
+    model: {
+      generate: (prompt: string, options?: { maxTokens?: number; temperature?: number }): string => {
+        const body: Record<string, unknown> = { prompt };
+        if (options?.maxTokens) body.maxTokens = options.maxTokens;
+        if (options?.temperature) body.temperature = options.temperature;
+        const resp = realFetch(`${backendUrl}/api/ai/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify(body),
+          timeout: 30000,
+        });
+        if (resp.status >= 400) throw new Error(`Backend returned ${resp.status}: ${resp.body}`);
+        const data = JSON.parse(resp.body);
+        return data.text || '';
+      },
+      summarize: (text: string, options?: { maxTokens?: number }): string => {
+        const body: Record<string, unknown> = { text };
+        if (options?.maxTokens) body.maxTokens = options.maxTokens;
+        const resp = realFetch(`${backendUrl}/api/ai/summarize`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${jwtToken}` },
+          body: JSON.stringify(body),
+          timeout: 30000,
+        });
+        if (resp.status >= 400) throw new Error(`Backend returned ${resp.status}: ${resp.body}`);
+        const data = JSON.parse(resp.body);
+        return data.summary || '';
+      },
+    },
     setTimeout,
     setInterval,
     clearTimeout,
@@ -733,15 +705,12 @@ export async function createBridgeAPIs(
     onSetOption: undefined,
     onOAuthComplete: undefined,
     onOAuthRevoked: undefined,
-    // Cleanup hook for persistent DB, model, and socket
+    onHookTriggered: undefined,
+    // Cleanup hook for persistent DB and socket
     __cleanup: () => {
       if (socket) {
         socket.disconnect();
         socket = null;
-      }
-      if (modelBridge) {
-        modelBridge.dispose().catch(() => {});
-        modelBridge = null;
       }
       if (persistentDb) {
         persistentDb.close();

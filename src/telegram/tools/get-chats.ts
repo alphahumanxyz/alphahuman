@@ -7,7 +7,7 @@ import type { ChatType } from '../types';
  * Get chats tool definition.
  */
 export const getChatsToolDefinition: ToolDefinition = {
-  name: 'telegram-get-chats',
+  name: 'get-chats',
   description:
     'Get Telegram chat list with optional filtering. Returns chats sorted by pinned status and recent activity. ' +
     'Use this to browse conversations, find specific chats, or filter by type (private, group, channel).',
@@ -72,3 +72,5 @@ export const getChatsToolDefinition: ToolDefinition = {
     }
   },
 };
+
+export default getChatsToolDefinition;

@@ -7,24 +7,18 @@
  * All globals (describe, it, assert*, setupSkillTest, callTool, getMockState, etc.)
  * are provided by the test harness when run.
  */
-const _describe = (globalThis as any).describe as (name: string, fn: () => void) => void;
-const _it = (globalThis as any).it as (name: string, fn: () => void) => void;
-const _assert = (globalThis as any).assert as (cond: unknown, msg?: string) => void;
-const _assertEqual = (globalThis as any).assertEqual as (
-  a: unknown,
-  b: unknown,
-  msg?: string
-) => void;
-const _assertNotNull = (globalThis as any).assertNotNull as (v: unknown, msg?: string) => void;
-const _assertTrue = (globalThis as any).assertTrue as (v: unknown, msg?: string) => void;
-const _setup = (globalThis as any).setupSkillTest as (opts?: any) => void;
-const _callTool = (globalThis as any).callTool as (name: string, args?: any) => any;
-const _getMockState = (globalThis as any).getMockState as () => any;
-const _mockFetchResponse = (globalThis as any).mockFetchResponse as (
-  url: string,
-  status: number,
-  body: string
-) => void;
+import {
+  _assert,
+  _assertEqual,
+  _assertNotNull,
+  _assertTrue,
+  _callTool,
+  _describe,
+  _getMockState,
+  _it,
+  _mockFetchResponse,
+  _setup,
+} from '../../test-harness-globals';
 
 const MOCK_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc454e4438f44e';
 const ETH_RPC = 'https://eth.llamarpc.com';

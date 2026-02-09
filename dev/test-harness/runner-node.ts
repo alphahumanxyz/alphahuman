@@ -229,8 +229,8 @@ async function main(): Promise<void> {
       var data = G.data;
       var cron = G.cron;
       var skills = G.skills;
-      var model = G.model;
       var oauth = G.oauth;
+      var hooks = G.hooks;
       var setTimeout = G.setTimeout;
       var setInterval = G.setInterval;
       var clearTimeout = G.clearTimeout;
@@ -302,6 +302,7 @@ async function main(): Promise<void> {
       if (typeof onSetOption !== 'undefined') G.onSetOption = onSetOption;
       if (typeof onOAuthComplete !== 'undefined') G.onOAuthComplete = onOAuthComplete;
       if (typeof onOAuthRevoked !== 'undefined') G.onOAuthRevoked = onOAuthRevoked;
+      if (typeof onHookTriggered !== 'undefined') G.onHookTriggered = onHookTriggered;
     `);
     fn(G);
   };
@@ -330,6 +331,7 @@ async function main(): Promise<void> {
     onSetOption?: (args: { name: string; value: unknown }) => void;
     onOAuthComplete?: (args: { credentialId: string; provider: string; grantedScopes: string[]; accountLabel?: string }) => unknown;
     onOAuthRevoked?: (args: { credentialId: string; reason: string }) => void;
+    onHookTriggered?: (args: Record<string, unknown>) => unknown;
   }
 
   const skillExport = G.__skill as { default?: SkillExport } | undefined;
@@ -349,6 +351,7 @@ async function main(): Promise<void> {
     if (skill.onSetOption && !G.onSetOption) G.onSetOption = skill.onSetOption;
     if (skill.onOAuthComplete && !G.onOAuthComplete) G.onOAuthComplete = skill.onOAuthComplete;
     if (skill.onOAuthRevoked && !G.onOAuthRevoked) G.onOAuthRevoked = skill.onOAuthRevoked;
+    if (skill.onHookTriggered && !G.onHookTriggered) G.onHookTriggered = skill.onHookTriggered;
   }
 
   // Report what was found
@@ -375,6 +378,7 @@ var onListOptions = G.onListOptions;
 var onSetOption = G.onSetOption;
 var onOAuthComplete = G.onOAuthComplete;
 var onOAuthRevoked = G.onOAuthRevoked;
+var onHookTriggered = G.onHookTriggered;
 
 function callTool(name, args) {
   args = args || {};

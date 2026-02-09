@@ -1,31 +1,18 @@
 // test-notion.ts — Tests for the Notion skill.
 // Runs via the V8 test harness.
 // Includes tests for both OAuth and legacy token authentication.
-
-// Helpers to access the typed globals
-const _describe = (globalThis as any).describe as (name: string, fn: () => void) => void;
-const _it = (globalThis as any).it as (name: string, fn: () => void) => void;
-const _assert = (globalThis as any).assert as (cond: unknown, msg?: string) => void;
-const _assertEqual = (globalThis as any).assertEqual as (
-  a: unknown,
-  b: unknown,
-  msg?: string
-) => void;
-const _assertNotNull = (globalThis as any).assertNotNull as (v: unknown, msg?: string) => void;
-const _assertContains = (globalThis as any).assertContains as (
-  h: string,
-  n: string,
-  msg?: string
-) => void;
-const _setup = (globalThis as any).setupSkillTest as (opts?: any) => void;
-const _callTool = (globalThis as any).callTool as (name: string, args?: any) => any;
-const _getMockState = (globalThis as any).getMockState as () => any;
-const _mockFetchResponse = (globalThis as any).mockFetchResponse as (
-  url: string,
-  status: number,
-  body: string,
-  headers?: Record<string, string>
-) => void;
+import {
+  _assert,
+  _assertContains,
+  _assertEqual,
+  _assertNotNull,
+  _callTool,
+  _describe,
+  _getMockState,
+  _it,
+  _mockFetchResponse,
+  _setup,
+} from '../../test-harness-globals';
 
 // Mock Notion API responses
 const MOCK_USER_ME = { object: 'user', id: 'user-123', name: 'Test Bot', type: 'bot' };
@@ -173,7 +160,7 @@ _describe('init()', () => {
 
   _it('should handle missing config gracefully', () => {
     freshInit();
-    const _mock = _getMockState();
+    _getMockState();
     // State may not be published yet without start()
     // Just ensure no errors
     _assert(true, 'should initialize without errors');

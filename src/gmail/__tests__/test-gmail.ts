@@ -1,36 +1,22 @@
 // test-gmail.ts — Comprehensive tests for the Gmail skill.
 // Runs via the V8 test harness.
+import {
+  _assert,
+  _assertContains,
+  _assertEqual,
+  _assertNotNull,
+  _callTool,
+  _describe,
+  _getMockState,
+  _it,
+  _mockFetchError,
+  _mockFetchResponse,
+  _setup,
+} from '../../test-harness-globals';
+import { getGmailSkillState } from '../skill-state';
 
-// All globals (describe, it, assert*, setupSkillTest, callTool, etc.)
-// are available from the harness scripts loaded before this file.
-
-// Helpers to access the typed globals
-const _describe = (globalThis as any).describe as (name: string, fn: () => void) => void;
-const _it = (globalThis as any).it as (name: string, fn: () => void) => void;
-const _assert = (globalThis as any).assert as (cond: unknown, msg?: string) => void;
-const _assertEqual = (globalThis as any).assertEqual as (
-  a: unknown,
-  b: unknown,
-  msg?: string
-) => void;
-const _assertNotNull = (globalThis as any).assertNotNull as (v: unknown, msg?: string) => void;
-const _assertContains = (globalThis as any).assertContains as (
-  h: string,
-  n: string,
-  msg?: string
-) => void;
-const _setup = (globalThis as any).setupSkillTest as (opts?: any) => void;
-const _callTool = (globalThis as any).callTool as (name: string, args?: any) => any;
-const _getMockState = (globalThis as any).getMockState as () => any;
-const _mockFetchResponse = (globalThis as any).mockFetchResponse as (
-  url: string,
-  status: number,
-  body: string
-) => void;
-const _mockFetchError = (globalThis as any).mockFetchError as (
-  url: string,
-  message?: string
-) => void;
+const g = globalThis as Record<string, unknown>;
+const init = g.init as () => void;
 
 // Sample Gmail API responses for testing
 const SAMPLE_PROFILE_RESPONSE = {
@@ -204,7 +190,7 @@ _describe('Gmail Skill', () => {
     _it('should initialize with default config when no stored config exists', () => {
       setupUnauthenticatedGmailTest();
 
-      const state = globalThis.getGmailSkillState();
+      const state = getGmailSkillState();
       _assertNotNull(state);
       _assertEqual(state.config.isAuthenticated, false);
       _assertEqual(state.config.syncEnabled, true);
@@ -214,7 +200,7 @@ _describe('Gmail Skill', () => {
     _it('should load stored config on init', () => {
       setupAuthenticatedGmailTest();
 
-      const state = globalThis.getGmailSkillState();
+      const state = getGmailSkillState();
       _assertEqual(state.config.isAuthenticated, true);
       _assertEqual(state.config.userEmail, 'test@example.com');
       _assertEqual(state.config.clientId, 'test_client_id');
@@ -237,7 +223,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-profile');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.profile.email_address, 'test@example.com');
@@ -249,7 +235,7 @@ _describe('Gmail Skill', () => {
       setupUnauthenticatedGmailTest();
 
       const result = _callTool('gmail-get-profile');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'authentication required');
@@ -261,7 +247,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-emails', { max_results: 10 });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertNotNull(response.emails);
@@ -278,7 +264,7 @@ _describe('Gmail Skill', () => {
         query: 'from:john@example.com',
         max_results: 5,
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.query, 'from:john@example.com');
@@ -291,7 +277,7 @@ _describe('Gmail Skill', () => {
         label_ids: ['INBOX', 'UNREAD'],
         max_results: 10,
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertNotNull(response.label_ids);
@@ -301,7 +287,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-emails', { max_results: 1 });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       // Since our mock returns 2 emails, but we limited to 1,
@@ -314,7 +300,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-email', { message_id: 'msg123' });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.email.id, 'msg123');
@@ -328,7 +314,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-email', { message_id: 'msg123', include_body: true });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertNotNull(response.email.body);
@@ -340,7 +326,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-email', {});
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'message_id is required');
@@ -356,7 +342,7 @@ _describe('Gmail Skill', () => {
         subject: 'Test Email',
         body_text: 'This is a test email.',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.message_id, 'sent123');
@@ -373,7 +359,7 @@ _describe('Gmail Skill', () => {
         subject: 'Test Email with CC/BCC',
         body_text: 'Test content.',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
     });
@@ -385,7 +371,7 @@ _describe('Gmail Skill', () => {
         subject: 'Test Email',
         body_text: 'Test content.',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'recipient is required');
@@ -398,7 +384,7 @@ _describe('Gmail Skill', () => {
         to: [{ email: 'test@example.com' }],
         body_text: 'Test content.',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'Subject is required');
@@ -411,7 +397,7 @@ _describe('Gmail Skill', () => {
         to: [{ email: 'test@example.com' }],
         subject: 'Test Email',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'body_text or body_html is required');
@@ -423,7 +409,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-labels');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.labels.length, 3);
@@ -439,7 +425,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-get-labels', { type: 'system' });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       // The actual filtering would happen in the real implementation
@@ -455,7 +441,7 @@ _describe('Gmail Skill', () => {
       const result = _callTool('gmail-search-emails', {
         query: 'from:john@example.com subject:test',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.query, 'from:john@example.com subject:test');
@@ -467,7 +453,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-search-emails', {});
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'query is required');
@@ -477,7 +463,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-search-emails', { query: 'simple search' });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assert(Array.isArray(response.search_tips));
@@ -493,7 +479,7 @@ _describe('Gmail Skill', () => {
         message_ids: ['msg123'],
         action: 'mark_read',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.action, 'mark_read');
@@ -507,7 +493,7 @@ _describe('Gmail Skill', () => {
         message_ids: ['msg123', 'msg124'],
         action: 'mark_unread',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
       _assertEqual(response.total_processed, 2);
@@ -517,7 +503,7 @@ _describe('Gmail Skill', () => {
       setupAuthenticatedGmailTest();
 
       const result = _callTool('gmail-mark-email', { action: 'mark_read' });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'message ID is required');
@@ -530,7 +516,7 @@ _describe('Gmail Skill', () => {
         message_ids: ['msg123'],
         action: 'add_labels',
       });
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'label_ids are required');
@@ -553,7 +539,7 @@ _describe('Gmail Skill', () => {
 
       // This should trigger token refresh
       const result = _callTool('gmail-get-profile');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, true);
     });
@@ -562,7 +548,7 @@ _describe('Gmail Skill', () => {
       setupUnauthenticatedGmailTest();
 
       const result = _callTool('gmail-get-emails');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'authentication required');
@@ -587,7 +573,7 @@ _describe('Gmail Skill', () => {
       );
 
       const result = _callTool('gmail-get-emails');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertContains(response.error, 'Bad Request');
@@ -599,7 +585,7 @@ _describe('Gmail Skill', () => {
       _mockFetchError('https://gmail.googleapis.com/gmail/v1/users/me/messages');
 
       const result = _callTool('gmail-get-emails');
-      const response = JSON.parse(result);
+      const response = JSON.parse(result as string);
 
       _assertEqual(response.success, false);
       _assertNotNull(response.error);

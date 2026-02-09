@@ -1,36 +1,32 @@
 // Notion sync engine
 // Periodically downloads pages, databases, users, and page content from Notion
 // into local SQLite for fast local querying.
-import type { NotionApi } from './api/index';
+import { notionApi } from './api/index';
+import {
+  getDatabaseById,
+  getDatabaseRowById,
+  getEntityCounts,
+  getLocalDatabases,
+  getPageById,
+  getPagesNeedingContent,
+  getUnsyncedSummaries,
+  markSummariesSynced,
+  updatePageContent,
+  upsertDatabase,
+  upsertDatabaseRow,
+  upsertPage,
+  upsertUser,
+} from './db-helpers';
+import { fetchBlockTreeText } from './helpers';
+import { getNotionSkillState } from './skill-state';
 import './skill-state';
-import type { NotionGlobals } from './types';
-
-// Resolve helpers and API from globalThis at call time.
-// We avoid module imports of n()/getApi() because esbuild's IIFE bundling
-// can fail to resolve peer-module exports in sync.ts (tools/ works fine
-// because they're in a subdirectory). Resolving from globalThis is reliable.
-const n = (): NotionGlobals => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (g.exports && typeof (g.exports as Record<string, unknown>).notionFetch === 'function') {
-    return g.exports as unknown as NotionGlobals;
-  }
-  return globalThis as unknown as NotionGlobals;
-};
-
-const getApi = (): NotionApi => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (g.exports && typeof (g.exports as Record<string, unknown>).notionApi === 'object') {
-    return (g.exports as Record<string, unknown>).notionApi as NotionApi;
-  }
-  return g.notionApi as NotionApi;
-};
 
 // ---------------------------------------------------------------------------
 // Main sync orchestrator
 // ---------------------------------------------------------------------------
 
 export function performSync(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
 
   // Guard: skip if already syncing or no credential
   if (s.syncStatus.syncInProgress) {
@@ -67,14 +63,8 @@ export function performSync(): void {
       syncContent();
     }
 
-    // Phase 4a: Generate AI summaries (stored locally, not yet synced)
-    if (s.config.contentSyncEnabled) {
-      console.log('[notion] Sync phase 4a: generate AI summaries');
-      generateSummaries();
-    }
-
-    // Phase 4b: Sync unsynced summaries to the server
-    console.log('[notion] Sync phase 4b: sync summaries to server');
+    // Phase 4: Sync unsynced summaries to the server
+    console.log('[notion] Sync phase 4: sync summaries to server');
     syncSummariesToServer();
 
     // Update sync state
@@ -82,9 +72,6 @@ export function performSync(): void {
     const nowMs = Date.now();
     s.syncStatus.nextSyncTime = nowMs + s.config.syncIntervalMinutes * 60 * 1000;
     s.syncStatus.lastSyncDurationMs = durationMs;
-
-    // Persist sync time in database
-    const { getEntityCounts } = n();
 
     // Only advance lastSyncTime if we actually have items in the DB.
     // This prevents the incremental sync from skipping everything on the
@@ -124,28 +111,16 @@ export function performSync(): void {
 // ---------------------------------------------------------------------------
 
 function syncUsers(): void {
-  const upsertUser = (globalThis as Record<string, unknown>).upsertUser as
-    | ((user: Record<string, unknown>) => void)
-    | undefined;
-  if (!upsertUser) {
-    console.warn('[notion] upsertUser not available on globalThis — skipping user sync');
-    return;
-  }
-
   let startCursor: string | undefined;
   let hasMore = true;
   let count = 0;
 
-  // Collect all user records for emitting after sync
-  const allUsers: Array<Record<string, unknown>> = [];
-
   while (hasMore) {
-    const result = getApi().listUsers(100, startCursor);
+    const result = notionApi.listUsers(100, startCursor);
 
     for (const user of result.results) {
       try {
         upsertUser(user as Record<string, unknown>);
-        allUsers.push(user as Record<string, unknown>);
         count++;
       } catch (e) {
         console.error(
@@ -156,29 +131,6 @@ function syncUsers(): void {
 
     hasMore = result.has_more;
     startCursor = (result.next_cursor as string | undefined) || undefined;
-  }
-
-  // Emit user data to frontend with all relevant fields
-  if (allUsers.length > 0) {
-    const usersPayload = allUsers.map(u => {
-      const person = u.person as Record<string, unknown> | undefined;
-      const bot = u.bot as Record<string, unknown> | undefined;
-      return {
-        id: u.id as string,
-        name: (u.name as string) || '(Unknown)',
-        type: (u.type as string) || 'person',
-        email: (person?.email as string) || null,
-        avatarUrl: (u.avatar_url as string) || null,
-        // Bot-specific fields
-        botOwnerType: bot ? ((bot.owner as Record<string, unknown>)?.type as string) || null : null,
-        botWorkspaceId: bot
-          ? ((bot.owner as Record<string, unknown>)?.workspace as boolean)
-            ? 'workspace'
-            : null
-          : null,
-      };
-    });
-    state.set('users', usersPayload);
   }
 
   console.log(`[notion] Synced ${count} users`);
@@ -192,28 +144,7 @@ function syncUsers(): void {
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function syncSearchItems(): void {
-  const api = getApi();
-  const upsertPage = (globalThis as Record<string, unknown>).upsertPage as
-    | ((page: Record<string, unknown>) => void)
-    | undefined;
-  const upsertDatabase = (globalThis as Record<string, unknown>).upsertDatabase as
-    | ((database: Record<string, unknown>) => void)
-    | undefined;
-  const getPageById = (globalThis as Record<string, unknown>).getPageById as
-    | ((id: string) => { last_edited_time: string } | null)
-    | undefined;
-  const getDatabaseById = (globalThis as Record<string, unknown>).getDatabaseById as
-    | ((id: string) => { last_edited_time: string } | null)
-    | undefined;
-
-  if (!upsertPage || !upsertDatabase) {
-    console.warn(
-      '[notion] upsertPage/upsertDatabase not available on globalThis — skipping search sync'
-    );
-    return;
-  }
-
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const lastSyncTime = s.syncStatus.lastSyncTime;
   const isFirstSync = lastSyncTime === 0;
   const cutoffMs = Date.now() - THIRTY_DAYS_MS;
@@ -234,7 +165,7 @@ function syncSearchItems(): void {
     };
     if (startCursor) body.start_cursor = startCursor;
 
-    const result = api.search(body);
+    const result = notionApi.search(body);
 
     for (const item of result.results) {
       const rec = item as Record<string, unknown>;
@@ -322,7 +253,6 @@ function syncDataSources(
   lastSyncTime: number,
   isFirstSync: boolean
 ): { count: number; skipped: number; errors: number } {
-  const api = getApi();
   let startCursor: string | undefined;
   let hasMore = true;
   let count = 0;
@@ -331,7 +261,7 @@ function syncDataSources(
   let reachedOldItems = false;
 
   while (hasMore && !reachedOldItems) {
-    const result = api.search({
+    const result = notionApi.search({
       page_size: 100,
       sort: { direction: 'descending', timestamp: 'last_edited_time' },
       filter: { property: 'object', value: 'data_source' },
@@ -384,23 +314,6 @@ function syncDataSources(
 const MAX_ROWS_PER_DATABASE = 200;
 
 function syncDatabaseRows(): void {
-  const api = getApi();
-  const { getLocalDatabases } = n();
-
-  const upsertDatabaseRow = (globalThis as Record<string, unknown>).upsertDatabaseRow as
-    | ((row: Record<string, unknown>, databaseId: string) => void)
-    | undefined;
-  const getDatabaseRowById = (globalThis as Record<string, unknown>).getDatabaseRowById as
-    | ((id: string) => { last_edited_time: string } | null)
-    | undefined;
-
-  if (!upsertDatabaseRow) {
-    console.warn(
-      '[notion] upsertDatabaseRow not available on globalThis — skipping database row sync'
-    );
-    return;
-  }
-
   // Get all locally synced databases
   const databases = getLocalDatabases({ limit: 100 }) as Array<{ id: string; title: string }>;
 
@@ -408,6 +321,10 @@ function syncDatabaseRows(): void {
     console.log('[notion] No databases to sync rows for');
     return;
   }
+
+  const s = getNotionSkillState();
+  const lastSyncTime = s.syncStatus.lastSyncTime;
+  const isFirstSync = lastSyncTime === 0;
 
   let totalRowCount = 0;
   let totalSkipped = 0;
@@ -421,8 +338,9 @@ function syncDatabaseRows(): void {
       let rowCount = 0;
       let skipped = 0;
       let fetched = 0;
+      let reachedOldRows = false;
 
-      while (hasMore && fetched < MAX_ROWS_PER_DATABASE) {
+      while (hasMore && fetched < MAX_ROWS_PER_DATABASE && !reachedOldRows) {
         const body: Record<string, unknown> = {
           page_size: 100,
           sorts: [{ timestamp: 'last_edited_time', direction: 'descending' }],
@@ -431,7 +349,7 @@ function syncDatabaseRows(): void {
 
         let result: { results: Record<string, unknown>[]; has_more: boolean; next_cursor?: string };
         try {
-          result = api.queryDataSource(database.id, body) as typeof result;
+          result = notionApi.queryDataSource(database.id, body) as typeof result;
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           // Skip databases we can't query (permissions, deleted, etc.)
@@ -452,6 +370,15 @@ function syncDatabaseRows(): void {
         for (const row of result.results) {
           const rec = row as Record<string, unknown>;
           const lastEdited = rec.last_edited_time as string;
+
+          // Incremental: stop when we reach rows older than last sync
+          if (!isFirstSync && lastEdited) {
+            const editedMs = new Date(lastEdited).getTime();
+            if (editedMs <= lastSyncTime) {
+              reachedOldRows = true;
+              break;
+            }
+          }
 
           // Skip if unchanged
           const existing = getDatabaseRowById?.(rec.id as string);
@@ -506,17 +433,7 @@ function syncDatabaseRows(): void {
 // ---------------------------------------------------------------------------
 
 function syncContent(): void {
-  const s = globalThis.getNotionSkillState();
-  const { fetchBlockTreeText } = n();
-  const getPagesNeedingContent = (globalThis as Record<string, unknown>).getPagesNeedingContent as
-    | ((limit: number, updatedAfterIso?: string) => Array<{ id: string; title: string }>)
-    | undefined;
-  const updatePageContent = (globalThis as Record<string, unknown>).updatePageContent as
-    | ((pageId: string, text: string) => void)
-    | undefined;
-
-  if (!getPagesNeedingContent || !updatePageContent) return;
-
+  const s = getNotionSkillState();
   const batchSize = s.config.maxPagesPerContentSync;
   const cutoffIso = new Date(Date.now() - THIRTY_DAYS_MS).toISOString();
   const pages = getPagesNeedingContent(batchSize, cutoffIso);
@@ -541,450 +458,27 @@ function syncContent(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4: AI summarization of synced page content
+// Phase 4: Sync unsynced summaries to the server
 // ---------------------------------------------------------------------------
 
-const VALID_CATEGORIES = [
-  'research',
-  'meeting_notes',
-  'project',
-  'documentation',
-  'planning',
-  'design',
-  'engineering',
-  'marketing',
-  'finance',
-  'hr',
-  'legal',
-  'operations',
-  'other',
-] as const;
-const VALID_SENTIMENTS = ['positive', 'neutral', 'negative', 'mixed'] as const;
-const VALID_ENTITY_TYPES = [
-  'person',
-  'wallet',
-  'channel',
-  'group',
-  'organization',
-  'token',
-  'other',
-] as const;
-
-interface PageClassification {
-  category: string;
-  sentiment: string;
-  entities: Array<{ id: string; type: string; name?: string; role?: string }>;
-  topics: string[];
-}
-
 /**
- * Use the local LLM to infer category, sentiment, entities, and topics in one call.
- * Returns defaults on failure so callers always get usable values.
- */
-function inferClassification(text: string): PageClassification {
-  const defaults: PageClassification = {
-    category: 'other',
-    sentiment: 'neutral',
-    entities: [],
-    topics: [],
-  };
-  try {
-    const prompt =
-      `Analyze the following Notion page. Respond with ONLY a JSON object:\n` +
-      `- "category": one of [${VALID_CATEGORIES.join(', ')}]\n` +
-      `- "sentiment": one of [${VALID_SENTIMENTS.join(', ')}]\n` +
-      `- "entities": array of {id, type, name, role} where type is one of [${VALID_ENTITY_TYPES.join(', ')}]. ` +
-      `Extract people mentioned, referenced pages, organizations, tokens/coins, wallets, channels, or groups.\n` +
-      `- "topics": array of short bullet-point strings (3-7 key topics or takeaways)\n\n` +
-      `${text}`;
-    const raw = model.generate(prompt, { maxTokens: 500, temperature: 0.1 });
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]) as Partial<PageClassification>;
-
-      const category = VALID_CATEGORIES.includes(
-        parsed.category as (typeof VALID_CATEGORIES)[number]
-      )
-        ? parsed.category!
-        : 'other';
-      const sentiment = VALID_SENTIMENTS.includes(
-        parsed.sentiment as (typeof VALID_SENTIMENTS)[number]
-      )
-        ? parsed.sentiment!
-        : 'neutral';
-
-      // Validate entities array
-      const entities: PageClassification['entities'] = [];
-      if (Array.isArray(parsed.entities)) {
-        for (const e of parsed.entities) {
-          const ent = e as Record<string, unknown>;
-          if (ent.id || ent.name) {
-            entities.push({
-              id: String(ent.id || ent.name || ''),
-              type: VALID_ENTITY_TYPES.includes(
-                String(ent.type || '') as (typeof VALID_ENTITY_TYPES)[number]
-              )
-                ? String(ent.type)
-                : 'other',
-              name: ent.name ? String(ent.name) : undefined,
-              role: ent.role ? String(ent.role) : undefined,
-            });
-          }
-        }
-      }
-
-      // Validate topics array
-      const topics: string[] = [];
-      if (Array.isArray(parsed.topics)) {
-        for (const t of parsed.topics) {
-          if (typeof t === 'string' && t.trim()) topics.push(t.trim());
-        }
-      }
-
-      return { category, sentiment, entities, topics };
-    }
-  } catch {
-    // Fall through to defaults
-  }
-  return defaults;
-}
-
-const CONTENT_LIMITS = [3000, 1500, 500];
-
-/**
- * Attempt summarization with progressively smaller content chunks.
- * Local models have limited context windows; retry with less text on overflow.
- */
-function summarizeWithFallback(content: string, metaBlock: string): string | null {
-  const instruction =
-    'Write a 2-3 sentence summary of this Notion page. Be direct and dense — include all key facts, decisions, names, dates, and action items. Omit filler and pleasantries.';
-
-  for (const limit of CONTENT_LIMITS) {
-    const truncated =
-      content.length > limit ? content.substring(0, limit) + '\n...(truncated)' : content;
-    const prompt = `${instruction}\n\n--- Page Metadata ---\n${metaBlock}\n\n--- Page Content ---\n${truncated}`;
-    try {
-      const result = model.summarize(prompt, { maxTokens: 10000 });
-      if (result && result.trim()) return result.trim();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      // Context overflow — retry with less content
-      if (
-        msg.includes('No sequences left') ||
-        msg.includes('context') ||
-        msg.includes('too long')
-      ) {
-        continue;
-      }
-      throw e; // Re-throw non-context errors
-    }
-  }
-  return null;
-}
-
-/**
- * Merge structured entities (from Notion properties) with LLM-inferred entities.
- * Structured entities take priority (they have verified IDs from the API).
- * LLM entities are added if they don't duplicate an existing id+role pair.
- */
-function mergeEntities(
-  structured: Array<{ id: string; type: string; name?: string; role: string; property?: string }>,
-  llmInferred: Array<{ id: string; type: string; name?: string; role?: string }>
-): Array<{ id: string; type: string; name?: string; role: string; property?: string }> {
-  const merged = [...structured];
-  const seen = new Set(structured.map(e => e.id.toLowerCase()));
-
-  for (const e of llmInferred) {
-    if (!seen.has(e.id.toLowerCase())) {
-      seen.add(e.id.toLowerCase());
-      merged.push({ id: e.id, type: e.type, name: e.name, role: e.role || 'mentioned' });
-    }
-  }
-
-  return merged;
-}
-
-/**
- * Phase 4a: Generate AI summaries for pages and database rows that need them.
- * Stores results in the `summaries` table with synced=0.
- * Does NOT submit to the server — that's handled by syncSummariesToServer().
- */
-function generateSummaries(): void {
-  const s = globalThis.getNotionSkillState();
-
-  // Check if the local model is available
-  if (!model.isAvailable()) {
-    console.log('[notion] AI model not available — skipping summaries');
-    return;
-  }
-
-  const getPagesNeedingSummary = (globalThis as Record<string, unknown>).getPagesNeedingSummary as
-    | ((
-        limit: number
-      ) => Array<{
-        id: string;
-        title: string;
-        content_text: string;
-        url: string | null;
-        last_edited_time: string;
-        created_time: string;
-      }>)
-    | undefined;
-  const getRowsNeedingSummary = (globalThis as Record<string, unknown>).getRowsNeedingSummary as
-    | ((
-        limit: number
-      ) => Array<{
-        id: string;
-        database_id: string;
-        title: string;
-        url: string | null;
-        properties_text: string | null;
-        created_time: string;
-        last_edited_time: string;
-        created_by_id: string | null;
-        last_edited_by_id: string | null;
-      }>)
-    | undefined;
-  const getPageStructuredEntities = (globalThis as Record<string, unknown>)
-    .getPageStructuredEntities as
-    | ((
-        pageId: string
-      ) => Array<{ id: string; type: string; name?: string; role: string; property?: string }>)
-    | undefined;
-  const getRowStructuredEntities = (globalThis as Record<string, unknown>)
-    .getRowStructuredEntities as
-    | ((
-        rowId: string
-      ) => Array<{ id: string; type: string; name?: string; role: string; property?: string }>)
-    | undefined;
-  const insertSummaryFn = (globalThis as Record<string, unknown>).insertSummary as
-    | ((opts: {
-        pageId: string;
-        url?: string | null;
-        summary: string;
-        category?: string;
-        sentiment?: string;
-        entities?: unknown[];
-        topics?: string[];
-        metadata?: Record<string, unknown>;
-        sourceCreatedAt: string;
-        sourceUpdatedAt: string;
-      }) => void)
-    | undefined;
-
-  if (!insertSummaryFn) return;
-
-  const batchSize = s.config.maxPagesPerContentSync;
-  let summarized = 0;
-  let failed = 0;
-
-  // --- Summarize pages ---
-  if (getPagesNeedingSummary) {
-    const pages = getPagesNeedingSummary(batchSize);
-
-    if (pages.length === 0) {
-      console.log('[notion] No pages need AI summarization');
-    } else {
-      for (const page of pages) {
-        try {
-          const trimmed = page.content_text.trim();
-          const hasContent = trimmed.length >= 50;
-
-          const classifyInput = hasContent
-            ? `Title: ${page.title}\nContent: ${trimmed.substring(0, 1000)}`
-            : `Title: ${page.title}`;
-          const classification = inferClassification(classifyInput);
-
-          let summary: string;
-
-          if (!hasContent) {
-            summary = page.title;
-          } else {
-            const metaParts: string[] = [`Title: ${page.title}`];
-            if (page.url) metaParts.push(`URL: ${page.url}`);
-            metaParts.push(`Created: ${page.created_time}`);
-            metaParts.push(`Last edited: ${page.last_edited_time}`);
-            const metaBlock = metaParts.join('\n');
-
-            const result = summarizeWithFallback(trimmed, metaBlock);
-            if (!result) continue;
-            summary = result;
-          }
-
-          const structuredEnts = getPageStructuredEntities?.(page.id) ?? [];
-          const mergedEntities = mergeEntities(structuredEnts, classification.entities);
-
-          insertSummaryFn({
-            pageId: page.id,
-            url: page.url,
-            summary,
-            category: classification.category,
-            sentiment: classification.sentiment,
-            entities: mergedEntities.map(e => ({
-              id: e.id,
-              dataSourceId: 'notionId',
-              type: e.type === 'page' ? 'other' : e.type,
-              name: e.name,
-              role: e.role,
-            })),
-            topics: classification.topics,
-            metadata: {
-              sourceType: 'page',
-              pageId: page.id,
-              pageTitle: page.title,
-              pageUrl: page.url,
-              lastEditedTime: page.last_edited_time,
-              createdTime: page.created_time,
-              contentLength: trimmed.length,
-              noContent: !hasContent,
-            },
-            sourceCreatedAt: new Date(page.created_time).toISOString(),
-            sourceUpdatedAt: new Date(page.last_edited_time).toISOString(),
-          });
-
-          summarized++;
-        } catch (e) {
-          console.error(`[notion] Failed to summarize page ${page.id} ("${page.title}"): ${e}`);
-          failed++;
-        }
-      }
-
-      console.log(
-        `[notion] AI summaries (pages): ${summarized} summarized${failed > 0 ? `, ${failed} failed` : ''}`
-      );
-    }
-  }
-
-  // --- Summarize database rows ---
-  if (getRowsNeedingSummary) {
-    const rows = getRowsNeedingSummary(batchSize);
-
-    if (rows.length === 0) {
-      console.log('[notion] No database rows need AI summarization');
-    } else {
-      let rowsSummarized = 0;
-      let rowsFailed = 0;
-
-      for (const row of rows) {
-        try {
-          const trimmed = (row.properties_text || '').trim();
-          const hasContent = trimmed.length >= 20; // Lower threshold for rows (properties are shorter)
-
-          const classifyInput = hasContent
-            ? `Database Row: ${row.title}\nProperties: ${trimmed.substring(0, 1000)}`
-            : `Database Row: ${row.title}`;
-          const classification = inferClassification(classifyInput);
-
-          let summary: string;
-
-          if (!hasContent) {
-            summary = row.title;
-          } else {
-            const metaParts: string[] = [`Title: ${row.title}`];
-            if (row.url) metaParts.push(`URL: ${row.url}`);
-            metaParts.push(`Database: ${row.database_id}`);
-            metaParts.push(`Created: ${row.created_time}`);
-            metaParts.push(`Last edited: ${row.last_edited_time}`);
-            const metaBlock = metaParts.join('\n');
-
-            const result = summarizeWithFallback(trimmed, metaBlock);
-            if (!result) {
-              // For rows, fall back to title if summarization fails entirely
-              summary = row.title;
-            } else {
-              summary = result;
-            }
-          }
-
-          const structuredEnts = getRowStructuredEntities?.(row.id) ?? [];
-          const mergedEntities = mergeEntities(structuredEnts, classification.entities);
-
-          insertSummaryFn({
-            pageId: row.id,
-            url: row.url,
-            summary,
-            category: classification.category,
-            sentiment: classification.sentiment,
-            entities: mergedEntities.map(e => ({
-              id: e.id,
-              dataSourceId: 'notionId',
-              type: e.type === 'page' ? 'other' : e.type,
-              name: e.name,
-              role: e.role,
-            })),
-            topics: classification.topics,
-            metadata: {
-              sourceType: 'database_row',
-              rowId: row.id,
-              databaseId: row.database_id,
-              rowTitle: row.title,
-              rowUrl: row.url,
-              lastEditedTime: row.last_edited_time,
-              createdTime: row.created_time,
-              contentLength: trimmed.length,
-              noContent: !hasContent,
-            },
-            sourceCreatedAt: new Date(row.created_time).toISOString(),
-            sourceUpdatedAt: new Date(row.last_edited_time).toISOString(),
-          });
-
-          rowsSummarized++;
-        } catch (e) {
-          console.error(
-            `[notion] Failed to summarize database row ${row.id} ("${row.title}"): ${e}`
-          );
-          rowsFailed++;
-        }
-      }
-
-      summarized += rowsSummarized;
-      failed += rowsFailed;
-
-      console.log(
-        `[notion] AI summaries (rows): ${rowsSummarized} summarized${rowsFailed > 0 ? `, ${rowsFailed} failed` : ''}`
-      );
-    }
-  }
-
-  if (summarized > 0 || failed > 0) {
-    console.log(
-      `[notion] AI summaries total: ${summarized} summarized${failed > 0 ? `, ${failed} failed` : ''}`
-    );
-  }
-}
-
-/**
- * Phase 4b: Sync unsynced summaries to the server.
- * Reads summaries with synced=0, submits each via model.submitSummary(),
+ * Sync unsynced summaries to the server via net.fetch().
+ * Reads summaries with synced=0, submits each to the backend API,
  * and marks them as synced on success.
  */
 function syncSummariesToServer(): void {
-  const getUnsyncedSummariesFn = (globalThis as Record<string, unknown>).getUnsyncedSummaries as
-    | ((
-        limit: number
-      ) => Array<{
-        id: number;
-        page_id: string;
-        url: string | null;
-        summary: string;
-        category: string | null;
-        sentiment: string | null;
-        entities: string | null;
-        topics: string | null;
-        metadata: string | null;
-        source_created_at: string;
-        source_updated_at: string;
-      }>)
-    | undefined;
-  const markSummariesSyncedFn = (globalThis as Record<string, unknown>).markSummariesSynced as
-    | ((ids: number[]) => void)
-    | undefined;
-
-  if (!getUnsyncedSummariesFn || !markSummariesSyncedFn) return;
-
-  const batch = getUnsyncedSummariesFn(100);
+  const batch = getUnsyncedSummaries(100);
   if (batch.length === 0) {
     console.log('[notion] No unsynced summaries to send');
+    return;
+  }
+
+  // Get backend URL and auth token from environment
+  const backendUrl = platform.env('BACKEND_URL');
+  const authToken = platform.env('AUTH_TOKEN');
+
+  if (!backendUrl || !authToken) {
+    console.warn('[notion] Missing BACKEND_URL or AUTH_TOKEN — skipping summary sync');
     return;
   }
 
@@ -999,7 +493,7 @@ function syncSummariesToServer(): void {
       const topics: string[] = row.topics ? JSON.parse(row.topics) : [];
       const metadata: Record<string, unknown> = row.metadata ? JSON.parse(row.metadata) : {};
 
-      model.submitSummary({
+      const submission: SummarySubmission = {
         summary: row.summary,
         url: row.url || undefined,
         category: row.category || undefined,
@@ -1010,7 +504,20 @@ function syncSummariesToServer(): void {
         metadata,
         createdAt: row.source_created_at,
         updatedAt: row.source_updated_at,
+      };
+
+      const resp = net.fetch(`${backendUrl}/api/summaries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        body: JSON.stringify(submission),
+        timeout: 10000,
       });
+
+      if (resp.status >= 400) {
+        console.error(`[notion] Summary submit failed (${resp.status}): ${resp.body}`);
+        failed++;
+        continue;
+      }
 
       syncedIds.push(row.id);
       sent++;
@@ -1022,7 +529,7 @@ function syncSummariesToServer(): void {
 
   // Mark successfully sent summaries as synced
   if (syncedIds.length > 0) {
-    markSummariesSyncedFn(syncedIds);
+    markSummariesSynced(syncedIds);
   }
 
   console.log(
@@ -1035,7 +542,7 @@ function syncSummariesToServer(): void {
 // ---------------------------------------------------------------------------
 
 function publishSyncState(): void {
-  const s = globalThis.getNotionSkillState();
+  const s = getNotionSkillState();
   const isConnected = !!oauth.getCredential();
 
   state.setPartial({
@@ -1066,14 +573,3 @@ function publishSyncState(): void {
     lastSyncDurationMs: s.syncStatus.lastSyncDurationMs,
   });
 }
-
-// Expose on globalThis
-const _g = globalThis as Record<string, unknown>;
-_g.performSync = performSync;
-_g.publishSyncState = publishSyncState;
-_g.syncDatabaseRows = syncDatabaseRows;
-_g.inferClassification = inferClassification;
-_g.mergeEntities = mergeEntities;
-_g.summarizeWithFallback = summarizeWithFallback;
-_g.generateSummaries = generateSummaries;
-_g.syncSummariesToServer = syncSummariesToServer;

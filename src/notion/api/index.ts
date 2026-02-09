@@ -1,16 +1,4 @@
 // Barrel export for the Notion API layer.
-//
-// IMPORTANT: esbuild IIFE bundling with the SKILL_HEADER `var exports = {}`
-// breaks inter-module imports.  `import * as pages from './pages'` resolves
-// to an empty object at runtime because tsc CJS output writes to the global
-// `exports` shim rather than to esbuild's per-module export objects.
-//
-// Workaround: we still import the modules (to trigger their initialization),
-// but build the notionApi object by reading functions from globalThis.exports
-// where the CJS modules actually placed them.
-//
-// The NotionApi interface is defined explicitly so TypeScript consumers
-// get proper return types (the runtime object is cast to this interface).
 import type {
   AppendBlockChildrenResponse,
   CreateCommentResponse,
@@ -32,13 +20,27 @@ import type {
   UpdatePageResponse,
 } from '@notionhq/client/build/src/api-endpoints';
 
+import {
+  appendBlockChildren,
+  deleteBlock,
+  getBlock,
+  getBlockChildren,
+  updateBlock,
+} from './blocks';
+import { createComment, listComments } from './comments';
 // Side-effect imports — trigger module initialization
-import './blocks';
-import './comments';
-import './databases';
-import './pages';
-import './search';
-import './users';
+import {
+  createDatabase,
+  getDatabase,
+  getDataSource,
+  listAllDatabases,
+  queryDataSource,
+  resolveDataSourceId,
+  updateDatabase,
+} from './databases';
+import { archivePage, createPage, getPage, getPageContent, updatePage } from './pages';
+import { search } from './search';
+import { getUser, listUsers } from './users';
 
 export interface NotionApi {
   // pages
@@ -71,37 +73,33 @@ export interface NotionApi {
   search(body: Record<string, unknown>): SearchResponse;
 }
 
-// After all modules initialize, their exported functions live on
-// globalThis.exports (the SKILL_HEADER's `var exports = {}`).
-const _e = (globalThis as unknown as { exports: Record<string, unknown> }).exports;
-
 export const notionApi: NotionApi = {
   // pages
-  getPage: _e.getPage,
-  createPage: _e.createPage,
-  updatePage: _e.updatePage,
-  archivePage: _e.archivePage,
-  getPageContent: _e.getPageContent,
+  getPage: getPage,
+  createPage: createPage,
+  updatePage: updatePage,
+  archivePage: archivePage,
+  getPageContent: getPageContent,
   // databases
-  getDatabase: _e.getDatabase,
-  resolveDataSourceId: _e.resolveDataSourceId,
-  getDataSource: _e.getDataSource,
-  queryDataSource: _e.queryDataSource,
-  createDatabase: _e.createDatabase,
-  updateDatabase: _e.updateDatabase,
-  listAllDatabases: _e.listAllDatabases,
+  getDatabase: getDatabase,
+  resolveDataSourceId: resolveDataSourceId,
+  getDataSource: getDataSource,
+  queryDataSource: queryDataSource,
+  createDatabase: createDatabase,
+  updateDatabase: updateDatabase,
+  listAllDatabases: listAllDatabases,
   // blocks
-  getBlock: _e.getBlock,
-  getBlockChildren: _e.getBlockChildren,
-  appendBlockChildren: _e.appendBlockChildren,
-  updateBlock: _e.updateBlock,
-  deleteBlock: _e.deleteBlock,
+  getBlock: getBlock,
+  getBlockChildren: getBlockChildren,
+  appendBlockChildren: appendBlockChildren,
+  updateBlock: updateBlock,
+  deleteBlock: deleteBlock,
   // users
-  getUser: _e.getUser,
-  listUsers: _e.listUsers,
+  getUser: getUser,
+  listUsers: listUsers,
   // comments
-  createComment: _e.createComment,
-  listComments: _e.listComments,
+  createComment: createComment,
+  listComments: listComments,
   // search
-  search: _e.search,
+  search: search,
 } as NotionApi;

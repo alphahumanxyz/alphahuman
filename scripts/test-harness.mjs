@@ -158,20 +158,17 @@ function createBridgeAPIs() {
     // Skills API
     skills: { list: () => [], callTool: () => null },
 
-    // Model API
-    model: {
-      isAvailable: () => true,
-      getStatus: () => ({ available: true, loaded: true, loading: false, downloaded: true }),
-      generate: (prompt, options) => '(mock model response)',
-      summarize: (text, options) => '(mock summary)',
-      submitSummary: () => {},
-    },
-
     // OAuth API
     oauth: {
       getCredential: () => null,
       fetch: (path, options) => ({ status: 404, headers: {}, body: '{"error":"No OAuth mock configured"}' }),
       revoke: () => true,
+    },
+
+    // Model API (generate/summarize)
+    model: {
+      generate: (prompt, options) => '[mock generate response]',
+      summarize: (text, options) => '[mock summary]',
     },
 
     // Console

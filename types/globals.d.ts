@@ -103,7 +103,7 @@ declare const oauth: {
    * Server attaches the OAuth access_token and forwards to the provider API.
    * Path is relative to manifest's apiBaseUrl.
    */
-  fetch(path: string, options?: OAuthFetchOptions): OAuthFetchResponse;
+  fetch(path: string, options?: OAuthFetchOptions): Promise<OAuthFetchResponse>;
 
   /** Revoke the current OAuth credential server-side. */
   revoke(): boolean;
@@ -197,7 +197,7 @@ interface ToolDefinition {
   name: string;
   description: string;
   input_schema: ToolInputSchema;
-  execute: (args: Record<string, unknown>) => string;
+  execute: (args: Record<string, unknown>) => string | Promise<string>;
 }
 
 interface ToolInputSchema {

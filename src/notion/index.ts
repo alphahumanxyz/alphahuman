@@ -116,7 +116,7 @@ function onSessionEnd(args: { sessionId: string }): void {
 // OAuth lifecycle
 // ---------------------------------------------------------------------------
 
-function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void {
+async function onOAuthComplete(args: OAuthCompleteArgs): Promise<OAuthCompleteResult | void> {
   const s = getNotionSkillState();
   s.config.credentialId = args.credentialId;
   console.log(

@@ -961,7 +961,7 @@ const telegramSyncTool: ToolDefinition = {
 // Skill Export
 // ---------------------------------------------------------------------------
 
-function onPing(): PingResult {
+async function onPing(): Promise<PingResult> {
   const s = globalThis.getTelegramSkillState();
   if (!s.client || !s.client.initialized) {
     return { ok: false, errorType: 'network', errorMessage: 'TDLib client not connected' };

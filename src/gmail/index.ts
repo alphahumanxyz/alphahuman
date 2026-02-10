@@ -18,7 +18,7 @@ import type { SkillConfig } from './types';
 // Gmail API helper (uses oauth.fetch proxy)
 // ---------------------------------------------------------------------------
 
-function gmailFetch(
+async function gmailFetch(
   endpoint: string,
   options: {
     method?: string;
@@ -26,7 +26,7 @@ function gmailFetch(
     headers?: Record<string, string>;
     timeout?: number;
   } = {}
-): { success: boolean; data?: any; error?: { code: number; message: string } } {
+): Promise<{ success: boolean; data?: any; error?: { code: number; message: string } }> {
   const credential = oauth.getCredential();
   if (!credential) {
     return {
@@ -36,7 +36,7 @@ function gmailFetch(
   }
 
   try {
-    const response = oauth.fetch(endpoint, {
+    const response = await oauth.fetch(endpoint, {
       method: options.method || 'GET',
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
       body: options.body,
@@ -182,7 +182,7 @@ function onSessionEnd(args: { sessionId: string }): void {
 // OAuth lifecycle hooks
 // ---------------------------------------------------------------------------
 
-function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void {
+async function onOAuthComplete(args: OAuthCompleteArgs): Promise<OAuthCompleteResult | void> {
   console.log(`[gmail] OAuth complete for provider: ${args.provider}`);
   const s = globalThis.getGmailSkillState();
 
@@ -340,8 +340,8 @@ function onSetOption(args: { name: string; value: unknown }): void {
 // Helper functions
 // ---------------------------------------------------------------------------
 
-function loadGmailProfile(): void {
-  const response = gmailFetch('/users/me/profile');
+async function loadGmailProfile(): Promise<void> {
+  const response = await gmailFetch('/users/me/profile');
   if (response.success) {
     const s = globalThis.getGmailSkillState();
     s.profile = {
@@ -360,7 +360,7 @@ function loadGmailProfile(): void {
   }
 }
 
-function performSync(): void {
+async function performSync(): Promise<void> {
   const s = globalThis.getGmailSkillState();
 
   if (!oauth.getCredential() || s.syncStatus.syncInProgress) {
@@ -380,13 +380,13 @@ function performSync(): void {
     params.push(`maxResults=${s.config.maxEmailsPerSync}`);
     params.push('q=in%3Ainbox');
 
-    const response = gmailFetch(`/users/me/messages?${params.join('&')}`);
+    const response = await gmailFetch(`/users/me/messages?${params.join('&')}`);
 
     if (response.success && response.data.messages) {
       let newEmails = 0;
 
       for (const msgRef of response.data.messages) {
-        const msgResponse = gmailFetch(`/users/me/messages/${msgRef.id}`);
+        const msgResponse = await gmailFetch(`/users/me/messages/${msgRef.id}`);
         if (msgResponse.success) {
           upsertEmail(msgResponse.data);
           newEmails++;

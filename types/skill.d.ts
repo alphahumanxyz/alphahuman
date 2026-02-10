@@ -15,7 +15,7 @@ interface Skill {
   onSetupStart?: () => SetupStartResult;
   onSetupSubmit?: (args: { stepId: string; values: Record<string, unknown> }) => SetupSubmitResult;
   onSetupCancel?: () => void;
-  onOAuthComplete?: (args: OAuthCompleteArgs) => unknown;
+  onOAuthComplete?: (args: OAuthCompleteArgs) => Promise<unknown>;
   onDisconnect?: () => void;
   publishState?: () => void;
   onOAuthRevoked?: (args: OAuthRevokedArgs) => void;
@@ -25,7 +25,7 @@ interface Skill {
   onSessionEnd?: (args: { sessionId: string }) => void;
   onTick?: () => void;
   onSync?: () => void;
-  onPing?: () => PingResult;
+  onPing?: () => Promise<PingResult>;
   /** Called when the frontend sends load params (e.g. wallet address for wallet skill). */
   onLoad?: (params: Record<string, unknown>) => void;
   onRpc?: (args: { method: string; params: unknown }) => unknown;

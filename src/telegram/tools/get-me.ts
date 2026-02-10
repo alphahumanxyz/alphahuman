@@ -9,11 +9,7 @@ export const getMeToolDefinition: ToolDefinition = {
   name: 'get-me',
   description:
     'Get Telegram user information for the currently logged-in account. Returns profile including name, username, and phone number.',
-  input_schema: {
-    type: 'object',
-    properties: {},
-    required: [],
-  },
+  input_schema: { type: 'object', properties: {}, required: [] },
   async execute(): Promise<string> {
     try {
       const s = globalThis.getTelegramSkillState();
@@ -39,10 +35,7 @@ export const getMeToolDefinition: ToolDefinition = {
         is_bot: me.type?.['@type'] === 'userTypeBot',
       };
 
-      return JSON.stringify({
-        success: true,
-        user: profile,
-      });
+      return JSON.stringify({ success: true, user: profile });
     } catch (err) {
       return JSON.stringify({
         success: false,

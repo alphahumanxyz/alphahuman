@@ -2,9 +2,9 @@
 // Fetches chats, messages, and user info via TDLib and stores in SQLite.
 // Import db-helpers to initialize globalThis.telegramDb
 import * as api from './api';
+import './db-helpers';
 import type { TdLibClient } from './tdlib-client';
 import type { TdChat } from './types';
-import './db-helpers';
 
 // Extend globalThis for sync functions
 declare global {

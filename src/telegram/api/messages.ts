@@ -57,18 +57,12 @@ export async function sendMessage(
     chat_id: chatId,
     input_message_content: {
       '@type': 'inputMessageText',
-      text: {
-        '@type': 'formattedText',
-        text,
-      },
+      text: { '@type': 'formattedText', text },
     },
   };
 
   if (replyToMessageId) {
-    request.reply_to = {
-      '@type': 'inputMessageReplyToMessage',
-      message_id: replyToMessageId,
-    };
+    request.reply_to = { '@type': 'inputMessageReplyToMessage', message_id: replyToMessageId };
   }
 
   const response = await client.send({ '@type': 'sendMessage', ...request });
@@ -173,10 +167,7 @@ export async function getChatPinnedMessage(
   chatId: number
 ): Promise<TdMessage | null> {
   try {
-    const response = await client.send({
-      '@type': 'getChatPinnedMessage',
-      chat_id: chatId,
-    });
+    const response = await client.send({ '@type': 'getChatPinnedMessage', chat_id: chatId });
     return response as unknown as TdMessage;
   } catch {
     return null;

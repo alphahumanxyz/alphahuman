@@ -7,21 +7,16 @@ import type { TdChat } from '../types';
  * Load chats from the main chat list. Triggers updateNewChat for each chat.
  */
 export async function loadChats(client: TdLibClient, limit: number = 20): Promise<TdResponse> {
-  return await client.send({
-    '@type': 'loadChats',
-    chat_list: { '@type': 'chatListMain' },
-    limit,
-  });
+  return await client.send({ '@type': 'loadChats', chat_list: { '@type': 'chatListMain' }, limit });
 }
 
 /**
  * Get chat IDs from the main chat list.
  */
 export async function getChats(client: TdLibClient): Promise<{ chat_ids?: number[] }> {
-  return (await client.send({
-    '@type': 'getChats',
-    chat_list: { '@type': 'chatListMain' },
-  })) as { chat_ids?: number[] };
+  return (await client.send({ '@type': 'getChats', chat_list: { '@type': 'chatListMain' } })) as {
+    chat_ids?: number[];
+  };
 }
 
 /**
@@ -38,10 +33,7 @@ export async function searchPublicChats(
   client: TdLibClient,
   query: string
 ): Promise<{ chat_ids?: number[] }> {
-  return (await client.send({
-    '@type': 'searchPublicChats',
-    query,
-  })) as { chat_ids?: number[] };
+  return (await client.send({ '@type': 'searchPublicChats', query })) as { chat_ids?: number[] };
 }
 
 /**
@@ -52,11 +44,7 @@ export async function searchChats(
   query: string,
   limit: number = 20
 ): Promise<{ chat_ids?: number[] }> {
-  return (await client.send({
-    '@type': 'searchChats',
-    query,
-    limit,
-  })) as { chat_ids?: number[] };
+  return (await client.send({ '@type': 'searchChats', query, limit })) as { chat_ids?: number[] };
 }
 
 /**

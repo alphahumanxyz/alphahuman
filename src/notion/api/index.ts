@@ -53,9 +53,15 @@ export interface NotionApi {
   getDatabase(databaseId: string): Promise<GetDatabaseResponse>;
   resolveDataSourceId(databaseId: string): string;
   getDataSource(dataSourceId: string): Promise<GetDataSourceResponse>;
-  queryDataSource(databaseId: string, body?: Record<string, unknown>): Promise<QueryDataSourceResponse>;
+  queryDataSource(
+    databaseId: string,
+    body?: Record<string, unknown>
+  ): Promise<QueryDataSourceResponse>;
   createDatabase(body: Record<string, unknown>): Promise<CreateDatabaseResponse>;
-  updateDatabase(databaseId: string, body: Record<string, unknown>): Promise<UpdateDatabaseResponse>;
+  updateDatabase(
+    databaseId: string,
+    body: Record<string, unknown>
+  ): Promise<UpdateDatabaseResponse>;
   listAllDatabases(pageSize?: number): Promise<SearchResponse>;
   // blocks
   getBlock(blockId: string): Promise<GetBlockResponse>;

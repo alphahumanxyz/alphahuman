@@ -15,9 +15,9 @@ export const listUsersTool: ToolDefinition = {
     try {
       const pageSize = Math.min((args.page_size as number) || 20, 100);
 
-       const result = await notionApi.listUsers(pageSize);
+      const result = await notionApi.listUsers(pageSize);
 
-       const users = result.results.map((u: Record<string, unknown>) => formatUserSummary(u));
+      const users = result.results.map((u: Record<string, unknown>) => formatUserSummary(u));
 
       return JSON.stringify({ count: users.length, has_more: result.has_more, users });
     } catch (e) {

@@ -42,9 +42,11 @@ export const getPageContentTool: ToolDefinition = {
         let children: Record<string, unknown>[] = [];
         if (recursive && block.object === 'block') {
           const childrenResult = await notionApi.getBlockChildren(block.id, 50);
-          children = childrenResult.results.map((c: Record<string, unknown>) => formatBlockSummary(c));
+          children = childrenResult.results.map((c: Record<string, unknown>) =>
+            formatBlockSummary(c)
+          );
         }
-        blocks.push({...summary, children: children.length > 0 ? children : undefined});
+        blocks.push({ ...summary, children: children.length > 0 ? children : undefined });
       }
 
       return JSON.stringify({

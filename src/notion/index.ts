@@ -72,19 +72,6 @@ function start(): void {
   const cronExpr = `0 */${s.config.syncIntervalMinutes} * * * *`;
   cron.register('notion-sync', cronExpr);
   console.log(`[notion] Scheduled sync every ${s.config.syncIntervalMinutes} minutes`);
-
-  // Perform initial sync (skip if sync was attempted in the last 10 mins)
-  const TEN_MINS_MS = 10 * 60 * 1000;
-  const lastSync = s.syncStatus.lastSyncTime;
-  const recentlySynced = lastSync > 0 && Date.now() - lastSync < TEN_MINS_MS;
-  if (!recentlySynced) {
-    performSync();
-  } else if (recentlySynced) {
-    console.log('[notion] Skipping initial sync — last sync was within 10 minutes');
-  }
-
-  console.log('[notion] Started');
-  publishState();
 }
 
 function stop(): void {
@@ -146,7 +133,6 @@ function onOAuthComplete(args: OAuthCompleteArgs): OAuthCompleteResult | void {
   const cronExpr = `0 */${s.config.syncIntervalMinutes} * * * *`;
   cron.register('notion-sync', cronExpr);
 
-  performSync();
   publishState();
 }
 
@@ -171,6 +157,11 @@ function onDisconnect(): void {
   state.delete('config');
   cron.unregister('notion-sync');
   publishState();
+}
+
+function onSync(): void {
+  console.log('[notion] Syncing');
+  performSync();
 }
 
 // ---------------------------------------------------------------------------
@@ -325,6 +316,7 @@ const skill: Skill = {
   onOAuthComplete,
   onOAuthRevoked,
   onDisconnect,
+  onSync,
   onListOptions,
   onSetOption,
   publishState,

@@ -1,6 +1,6 @@
 // Shared type for Notion helper/API surface used by tools and sync
 export interface NotionGlobals {
-  notionFetch(endpoint: string, options?: { method?: string; body?: unknown }): unknown;
+  notionFetch(endpoint: string, options?: { method?: string; body?: unknown }): Promise<unknown>;
   formatApiError(error: unknown): string;
   formatRichText(richText: unknown[]): string;
   formatPageTitle(page: Record<string, unknown>): string;
@@ -11,7 +11,7 @@ export interface NotionGlobals {
   formatUserSummary(user: Record<string, unknown>): Record<string, unknown>;
   buildRichText(text: string): unknown[];
   buildParagraphBlock(text: string): Record<string, unknown>;
-  fetchBlockTreeText(blockId: string, maxDepth?: number): string;
+  fetchBlockTreeText(blockId: string, maxDepth?: number): Promise<string>;
   getLocalPages(options?: { query?: string; limit?: number; includeArchived?: boolean }): unknown[];
   getLocalDatabases(options?: { query?: string; limit?: number }): unknown[];
   getLocalDatabaseRows(options?: {

@@ -13,7 +13,7 @@ export const listCommentsTool: ToolDefinition = {
     },
     required: ['block_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const blockId = (args.block_id as string) || '';
       const pageSize = Math.min((args.page_size as number) || 20, 100);
@@ -22,7 +22,7 @@ export const listCommentsTool: ToolDefinition = {
         return JSON.stringify({ error: 'block_id is required' });
       }
 
-      const result = notionApi.listComments(blockId, pageSize);
+      const result = await notionApi.listComments(blockId, pageSize);
 
       const comments = result.results.map((comment: Record<string, unknown>) => {
         const commentRec = comment;

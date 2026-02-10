@@ -18,7 +18,7 @@ export const queryDatabaseTool: ToolDefinition = {
     },
     required: ['database_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const databaseId = (args.database_id as string) || '';
       const filterJson = args.filter as string | undefined;
@@ -47,7 +47,7 @@ export const queryDatabaseTool: ToolDefinition = {
         }
       }
 
-      const result = notionApi.queryDataSource(databaseId, body);
+      const result = await notionApi.queryDataSource(databaseId, body);
 
       const rows = result.results.map((page: Record<string, unknown>) => {
         return { ...formatPageSummary(page), properties: page.properties };

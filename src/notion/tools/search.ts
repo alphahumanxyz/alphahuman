@@ -18,7 +18,7 @@ export const searchTool: ToolDefinition = {
       },
     },
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const query = ((args.query as string) || '').trim();
       const filter = args.filter as string | undefined;
@@ -29,7 +29,7 @@ export const searchTool: ToolDefinition = {
       if (filter)
         body.filter = { property: 'object', value: filter === 'database' ? 'data_source' : filter };
 
-      const result = notionApi.search(body);
+      const result = await notionApi.search(body);
 
       const formatted = result.results.map((item: Record<string, unknown>) => {
         const obj = item;

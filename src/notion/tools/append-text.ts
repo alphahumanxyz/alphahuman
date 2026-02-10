@@ -14,7 +14,7 @@ export const appendTextTool: ToolDefinition = {
     },
     required: ['block_id', 'text'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const blockId = (args.block_id as string) || '';
       const text = (args.text as string) || '';
@@ -29,7 +29,7 @@ export const appendTextTool: ToolDefinition = {
       const paragraphs = text.split('\n').filter(p => p.trim());
       const children = paragraphs.map(buildParagraphBlock);
 
-      const result = notionApi.appendBlockChildren(blockId, children);
+      const result = await notionApi.appendBlockChildren(blockId, children);
 
       return JSON.stringify({
         success: true,

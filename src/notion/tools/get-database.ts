@@ -10,15 +10,15 @@ export const getDatabaseTool: ToolDefinition = {
     properties: { database_id: { type: 'string', description: 'The database ID' } },
     required: ['database_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const databaseId = (args.database_id as string) || '';
       if (!databaseId) {
         return JSON.stringify({ error: 'database_id is required' });
       }
 
-      const dataSourceId = notionApi.resolveDataSourceId(databaseId);
-      const dsResult = notionApi.getDataSource(dataSourceId);
+      const dataSourceId = await notionApi.resolveDataSourceId(databaseId);
+      const dsResult = await notionApi.getDataSource(dataSourceId);
 
       const dsRec = dsResult as Record<string, unknown>;
       const props = dsRec.properties as Record<string, unknown>;

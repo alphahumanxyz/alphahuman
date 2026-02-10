@@ -14,11 +14,11 @@ export const listAllPagesTool: ToolDefinition = {
       },
     },
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageSize = Math.min((args.page_size as number) || 20, 100);
 
-      const result = notionApi.search({
+      const result = await notionApi.search({
         filter: { property: 'object', value: 'page' },
         page_size: pageSize,
       });

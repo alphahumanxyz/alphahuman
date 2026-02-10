@@ -21,7 +21,7 @@ export const createDatabaseTool: ToolDefinition = {
     },
     required: ['parent_page_id', 'title'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const parentId = (args.parent_page_id as string) || '';
       const title = (args.title as string) || '';
@@ -46,7 +46,7 @@ export const createDatabaseTool: ToolDefinition = {
 
       const body = { parent: { page_id: parentId }, title: buildRichText(title), properties };
 
-      const dbResult = notionApi.createDatabase(body);
+      const dbResult = await notionApi.createDatabase(body);
 
       return JSON.stringify({
         success: true,

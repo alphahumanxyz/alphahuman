@@ -4,13 +4,13 @@
 // Notion API helpers
 // ---------------------------------------------------------------------------
 
-export function notionFetch(
+export async function notionFetch(
   endpoint: string,
   options: { method?: string; body?: unknown } = {}
-): unknown {
+): Promise<unknown> {
   if (!oauth.getCredential()) throw new Error('Notion not connected. Please complete setup first.');
 
-  const response = oauth.fetch(`/v1${endpoint}`, {
+  const response = await oauth.fetch(`/v1${endpoint}`, {
     method: options.method || 'GET',
     headers: { 'Content-Type': 'application/json' },
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -157,7 +157,7 @@ export function buildParagraphBlock(text: string): Record<string, unknown> {
  * Recursively fetch block children and extract plain text content.
  * Used by the sync engine to populate page content_text.
  */
-export function fetchBlockTreeText(blockId: string, maxDepth: number = 2): string {
+export async function fetchBlockTreeText(blockId: string, maxDepth: number = 2): Promise<string> {
   if (maxDepth < 0) return '';
 
   const lines: string[] = [];
@@ -169,7 +169,7 @@ export function fetchBlockTreeText(blockId: string, maxDepth: number = 2): strin
 
     let result: { results: Record<string, unknown>[]; has_more: boolean; next_cursor?: string };
     try {
-      result = notionFetch(endpoint) as typeof result;
+      result = (await notionFetch(endpoint)) as typeof result;
     } catch {
       // If we can't fetch children (permissions, deleted, etc.), skip
       break;
@@ -188,7 +188,7 @@ export function fetchBlockTreeText(blockId: string, maxDepth: number = 2): strin
 
       // Recurse into children if the block has them and we have depth budget
       if (block.has_children && maxDepth > 0) {
-        const childText = fetchBlockTreeText(block.id as string, maxDepth - 1);
+        const childText = await fetchBlockTreeText(block.id as string, maxDepth - 1);
         if (childText) lines.push(childText);
       }
     }

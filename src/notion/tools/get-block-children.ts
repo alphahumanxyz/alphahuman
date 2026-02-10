@@ -13,7 +13,7 @@ export const getBlockChildrenTool: ToolDefinition = {
     },
     required: ['block_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const blockId = (args.block_id as string) || '';
       const pageSize = Math.min((args.page_size as number) || 50, 100);
@@ -22,7 +22,7 @@ export const getBlockChildrenTool: ToolDefinition = {
         return JSON.stringify({ error: 'block_id is required' });
       }
 
-      const result = notionApi.getBlockChildren(blockId, pageSize);
+      const result = await notionApi.getBlockChildren(blockId, pageSize);
 
       return JSON.stringify({
         parent_id: blockId,

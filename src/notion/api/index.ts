@@ -44,33 +44,33 @@ import { getUser, listUsers } from './users';
 
 export interface NotionApi {
   // pages
-  getPage(pageId: string): GetPageResponse;
-  createPage(body: Record<string, unknown>): CreatePageResponse;
-  updatePage(pageId: string, body: Record<string, unknown>): UpdatePageResponse;
-  archivePage(pageId: string): UpdatePageResponse;
-  getPageContent(pageId: string, pageSize?: number): ListBlockChildrenResponse;
+  getPage(pageId: string): Promise<GetPageResponse>;
+  createPage(body: Record<string, unknown>): Promise<CreatePageResponse>;
+  updatePage(pageId: string, body: Record<string, unknown>): Promise<UpdatePageResponse>;
+  archivePage(pageId: string): Promise<UpdatePageResponse>;
+  getPageContent(pageId: string, pageSize?: number): Promise<ListBlockChildrenResponse>;
   // databases
-  getDatabase(databaseId: string): GetDatabaseResponse;
+  getDatabase(databaseId: string): Promise<GetDatabaseResponse>;
   resolveDataSourceId(databaseId: string): string;
-  getDataSource(dataSourceId: string): GetDataSourceResponse;
-  queryDataSource(databaseId: string, body?: Record<string, unknown>): QueryDataSourceResponse;
-  createDatabase(body: Record<string, unknown>): CreateDatabaseResponse;
-  updateDatabase(databaseId: string, body: Record<string, unknown>): UpdateDatabaseResponse;
-  listAllDatabases(pageSize?: number): SearchResponse;
+  getDataSource(dataSourceId: string): Promise<GetDataSourceResponse>;
+  queryDataSource(databaseId: string, body?: Record<string, unknown>): Promise<QueryDataSourceResponse>;
+  createDatabase(body: Record<string, unknown>): Promise<CreateDatabaseResponse>;
+  updateDatabase(databaseId: string, body: Record<string, unknown>): Promise<UpdateDatabaseResponse>;
+  listAllDatabases(pageSize?: number): Promise<SearchResponse>;
   // blocks
-  getBlock(blockId: string): GetBlockResponse;
-  getBlockChildren(blockId: string, pageSize?: number): ListBlockChildrenResponse;
-  appendBlockChildren(blockId: string, children: unknown[]): AppendBlockChildrenResponse;
-  updateBlock(blockId: string, body: Record<string, unknown>): UpdateBlockResponse;
-  deleteBlock(blockId: string): DeleteBlockResponse;
+  getBlock(blockId: string): Promise<GetBlockResponse>;
+  getBlockChildren(blockId: string, pageSize?: number): Promise<ListBlockChildrenResponse>;
+  appendBlockChildren(blockId: string, children: unknown[]): Promise<AppendBlockChildrenResponse>;
+  updateBlock(blockId: string, body: Record<string, unknown>): Promise<UpdateBlockResponse>;
+  deleteBlock(blockId: string): Promise<DeleteBlockResponse>;
   // users
-  getUser(userId: string): GetUserResponse;
-  listUsers(pageSize?: number, startCursor?: string): ListUsersResponse;
+  getUser(userId: string): Promise<GetUserResponse>;
+  listUsers(pageSize?: number, startCursor?: string): Promise<ListUsersResponse>;
   // comments
-  createComment(body: Record<string, unknown>): CreateCommentResponse;
-  listComments(blockId: string, pageSize?: number): ListCommentsResponse;
+  createComment(body: Record<string, unknown>): Promise<CreateCommentResponse>;
+  listComments(blockId: string, pageSize?: number): Promise<ListCommentsResponse>;
   // search
-  search(body: Record<string, unknown>): SearchResponse;
+  search(body: Record<string, unknown>): Promise<SearchResponse>;
 }
 
 export const notionApi: NotionApi = {

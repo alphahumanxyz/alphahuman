@@ -9,31 +9,34 @@ import type {
 
 import { apiFetch } from './client';
 
-export function getBlock(blockId: string): GetBlockResponse {
+export function getBlock(blockId: string): Promise<GetBlockResponse> {
   return apiFetch<GetBlockResponse>(`/blocks/${blockId}`);
 }
 
 export function getBlockChildren(
   blockId: string,
   pageSize: number = 50
-): ListBlockChildrenResponse {
+): Promise<ListBlockChildrenResponse> {
   return apiFetch<ListBlockChildrenResponse>(`/blocks/${blockId}/children?page_size=${pageSize}`);
 }
 
 export function appendBlockChildren(
   blockId: string,
   children: unknown[]
-): AppendBlockChildrenResponse {
+): Promise<AppendBlockChildrenResponse> {
   return apiFetch<AppendBlockChildrenResponse>(`/blocks/${blockId}/children`, {
     method: 'PATCH',
     body: { children },
   });
 }
 
-export function updateBlock(blockId: string, body: Record<string, unknown>): UpdateBlockResponse {
+export function updateBlock(
+  blockId: string,
+  body: Record<string, unknown>
+): Promise<UpdateBlockResponse> {
   return apiFetch<UpdateBlockResponse>(`/blocks/${blockId}`, { method: 'PATCH', body });
 }
 
-export function deleteBlock(blockId: string): DeleteBlockResponse {
+export function deleteBlock(blockId: string): Promise<DeleteBlockResponse> {
   return apiFetch<DeleteBlockResponse>(`/blocks/${blockId}`, { method: 'DELETE' });
 }

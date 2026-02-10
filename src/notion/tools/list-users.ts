@@ -11,11 +11,11 @@ export const listUsersTool: ToolDefinition = {
       page_size: { type: 'number', description: 'Number of results (default 20, max 100)' },
     },
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageSize = Math.min((args.page_size as number) || 20, 100);
 
-      const result = notionApi.listUsers(pageSize);
+      const result = await notionApi.listUsers(pageSize);
 
       const users = result.results.map((u: Record<string, unknown>) => formatUserSummary(u));
 

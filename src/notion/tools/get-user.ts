@@ -10,14 +10,14 @@ export const getUserTool: ToolDefinition = {
     properties: { user_id: { type: 'string', description: 'The user ID' } },
     required: ['user_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const userId = (args.user_id as string) || '';
       if (!userId) {
         return JSON.stringify({ error: 'user_id is required' });
       }
 
-      const user = notionApi.getUser(userId);
+      const user = await notionApi.getUser(userId);
 
       return JSON.stringify(formatUserSummary(user as Record<string, unknown>));
     } catch (e) {

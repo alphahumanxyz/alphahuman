@@ -21,7 +21,7 @@ export const updatePageTool: ToolDefinition = {
     },
     required: ['page_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageId = (args.page_id as string) || '';
       const title = args.title as string | undefined;
@@ -56,7 +56,7 @@ export const updatePageTool: ToolDefinition = {
         return JSON.stringify({ error: 'No updates specified' });
       }
 
-      const page = notionApi.updatePage(pageId, body);
+      const page = await notionApi.updatePage(pageId, body);
 
       return JSON.stringify({
         success: true,

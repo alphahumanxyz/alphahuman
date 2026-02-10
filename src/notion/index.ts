@@ -274,13 +274,14 @@ function publishState(): void {
 // without explicit assignment they are unreachable from outside.
 // ---------------------------------------------------------------------------
 
-function onPing(): PingResult {
+async function onPing(): Promise<PingResult> {
   const cred = oauth.getCredential();
   if (!cred) {
     return { ok: false, errorType: 'auth', errorMessage: 'No OAuth credential' };
   }
   try {
-    const response = oauth.fetch('/v1/users?page_size=1');
+    const response = await oauth.fetch('/v1/users?page_size=1');
+    console.log('[notion] onPing response: ', response);
     if (response.status === 401 || response.status === 403) {
       return { ok: false, errorType: 'auth', errorMessage: `Notion returned ${response.status}` };
     }

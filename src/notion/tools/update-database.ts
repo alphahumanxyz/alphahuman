@@ -14,7 +14,7 @@ export const updateDatabaseTool: ToolDefinition = {
     },
     required: ['database_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const databaseId = (args.database_id as string) || '';
       const title = args.title as string | undefined;
@@ -42,7 +42,7 @@ export const updateDatabaseTool: ToolDefinition = {
         return JSON.stringify({ error: 'No updates specified' });
       }
 
-      const dbResult = notionApi.updateDatabase(databaseId, body);
+      const dbResult = await notionApi.updateDatabase(databaseId, body);
 
       return JSON.stringify({
         success: true,

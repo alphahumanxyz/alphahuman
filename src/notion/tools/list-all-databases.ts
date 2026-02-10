@@ -11,11 +11,11 @@ export const listAllDatabasesTool: ToolDefinition = {
       page_size: { type: 'number', description: 'Number of results (default 20, max 100)' },
     },
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageSize = Math.min((args.page_size as number) || 20, 100);
 
-      const result = notionApi.listAllDatabases(pageSize);
+      const result = await notionApi.listAllDatabases(pageSize);
 
       const databases = result.results.map((item: Record<string, unknown>) =>
         formatDatabaseSummary(item)

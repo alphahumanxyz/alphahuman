@@ -19,7 +19,7 @@ export const createCommentTool: ToolDefinition = {
     },
     required: ['text'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageId = args.page_id as string | undefined;
       const discussionId = args.discussion_id as string | undefined;
@@ -40,7 +40,7 @@ export const createCommentTool: ToolDefinition = {
         body.parent = { page_id: pageId };
       }
 
-      const comment = notionApi.createComment(body);
+      const comment = await notionApi.createComment(body);
       const commentRec = comment as Record<string, unknown>;
 
       return JSON.stringify({

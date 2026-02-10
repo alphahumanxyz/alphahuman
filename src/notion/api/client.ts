@@ -1,6 +1,9 @@
 // Centralized Notion API fetch resolver.
 import { notionFetch } from '../helpers';
 
-export function apiFetch<T>(endpoint: string, options?: { method?: string; body?: unknown }): T {
-  return notionFetch(endpoint, options) as T;
+export async function apiFetch<T>(
+  endpoint: string,
+  options?: { method?: string; body?: unknown }
+): Promise<T> {
+  return (await notionFetch(endpoint, options)) as T;
 }

@@ -10,7 +10,7 @@ import type {
 
 import { apiFetch } from './client';
 
-export function getDatabase(databaseId: string): GetDatabaseResponse {
+export function getDatabase(databaseId: string): Promise<GetDatabaseResponse> {
   return apiFetch<GetDatabaseResponse>(`/databases/${databaseId}`);
 }
 
@@ -30,7 +30,7 @@ export function resolveDataSourceId(databaseId: string): string {
   return dataSources[0].id;
 }
 
-export function getDataSource(dataSourceId: string): GetDataSourceResponse {
+export function getDataSource(dataSourceId: string): Promise<GetDataSourceResponse> {
   return apiFetch<GetDataSourceResponse>(`/data_sources/${dataSourceId}`);
 }
 
@@ -42,7 +42,7 @@ export function getDataSource(dataSourceId: string): GetDataSourceResponse {
 export function queryDataSource(
   databaseId: string,
   body?: Record<string, unknown>
-): QueryDataSourceResponse {
+): Promise<QueryDataSourceResponse> {
   let dataSourceId: string;
   try {
     dataSourceId = resolveDataSourceId(databaseId);
@@ -57,18 +57,18 @@ export function queryDataSource(
   });
 }
 
-export function createDatabase(body: Record<string, unknown>): CreateDatabaseResponse {
+export function createDatabase(body: Record<string, unknown>): Promise<CreateDatabaseResponse> {
   return apiFetch<CreateDatabaseResponse>('/databases', { method: 'POST', body });
 }
 
 export function updateDatabase(
   databaseId: string,
   body: Record<string, unknown>
-): UpdateDatabaseResponse {
+): Promise<UpdateDatabaseResponse> {
   return apiFetch<UpdateDatabaseResponse>(`/databases/${databaseId}`, { method: 'PATCH', body });
 }
 
-export function listAllDatabases(pageSize: number = 20): SearchResponse {
+export function listAllDatabases(pageSize: number = 20): Promise<SearchResponse> {
   return apiFetch<SearchResponse>('/search', {
     method: 'POST',
     body: { filter: { property: 'object', value: 'data_source' }, page_size: pageSize },

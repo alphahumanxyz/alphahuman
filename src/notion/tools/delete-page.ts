@@ -10,14 +10,14 @@ export const deletePageTool: ToolDefinition = {
     properties: { page_id: { type: 'string', description: 'The page ID to delete/archive' } },
     required: ['page_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const pageId = (args.page_id as string) || '';
       if (!pageId) {
         return JSON.stringify({ error: 'page_id is required' });
       }
 
-      const page = notionApi.archivePage(pageId);
+      const page = await notionApi.archivePage(pageId);
 
       return JSON.stringify({
         success: true,

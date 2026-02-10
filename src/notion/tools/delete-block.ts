@@ -10,14 +10,14 @@ export const deleteBlockTool: ToolDefinition = {
     properties: { block_id: { type: 'string', description: 'The block ID to delete' } },
     required: ['block_id'],
   },
-  execute(args: Record<string, unknown>): string {
+  async execute(args: Record<string, unknown>): Promise<string> {
     try {
       const blockId = (args.block_id as string) || '';
       if (!blockId) {
         return JSON.stringify({ error: 'block_id is required' });
       }
 
-      notionApi.deleteBlock(blockId);
+      await notionApi.deleteBlock(blockId);
 
       return JSON.stringify({ success: true, message: 'Block deleted', block_id: blockId });
     } catch (e) {

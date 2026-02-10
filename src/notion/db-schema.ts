@@ -138,6 +138,3 @@ export function initializeNotionSchema(): void {
 
   console.log('[notion] Database schema initialized successfully');
 }
-
-// Expose function on globalThis for use by main module
-(globalThis as Record<string, unknown>).initializeNotionSchema = initializeNotionSchema;

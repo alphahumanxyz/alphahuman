@@ -4,6 +4,7 @@
 import './db-helpers';
 import type { TdUpdate } from './tdlib-client';
 import type {
+  TdMessageContent,
   TdUpdateChatLastMessage,
   TdUpdateChatPosition,
   TdUpdateChatReadInbox,
@@ -17,6 +18,29 @@ import type {
   TdUpdateUser,
   TdUpdateUserStatus,
 } from './types';
+
+// ---------------------------------------------------------------------------
+// Helper: extract text from TDLib message content
+// ---------------------------------------------------------------------------
+
+function extractText(content: TdMessageContent): string {
+  if (!content) return '';
+  const type = content['@type'];
+  if (type === 'messageText') {
+    return (content as { '@type': 'messageText'; text: { text: string } }).text?.text ?? '';
+  }
+  if (
+    type === 'messagePhoto' ||
+    type === 'messageVideo' ||
+    type === 'messageDocument' ||
+    type === 'messageAudio' ||
+    type === 'messageVoiceNote' ||
+    type === 'messageAnimation'
+  ) {
+    return (content as { caption?: { text: string } }).caption?.text ?? '';
+  }
+  return '';
+}
 
 // ---------------------------------------------------------------------------
 // Update Handler Registry
@@ -71,6 +95,25 @@ function handleUpdateNewChat(update: TdUpdate): void {
 
   console.log(`[telegram] New chat: ${data.chat.id} - ${data.chat.title}`);
   globalThis.telegramDb.upsertChat(data.chat);
+
+  // Emit hook event
+  const chatType = data.chat.type?.['@type'];
+  const isChannel = chatType === 'chatTypeSupergroup' && data.chat.type?.is_channel;
+  const entityType = isChannel
+    ? 'telegram.channel'
+    : chatType === 'chatTypePrivate' || chatType === 'chatTypeSecret'
+      ? 'telegram.dm'
+      : 'telegram.group';
+
+  hooks.emit({
+    type: 'telegram.chat.created',
+    source: 'telegram',
+    timestamp: Date.now(),
+    entities: {
+      chat: { type: entityType, id: String(data.chat.id), properties: { title: data.chat.title } },
+    },
+    data: { chat_id: String(data.chat.id), title: data.chat.title, chat_type: entityType },
+  });
 }
 
 /**
@@ -136,6 +179,78 @@ function handleUpdateNewMessage(update: TdUpdate): void {
   if (!data.message) return;
 
   globalThis.telegramDb.upsertMessage(data.message);
+
+  // Emit hook event
+  const msg = data.message;
+  const entities: Record<string, HookEntityRef> = {
+    chat: { type: 'telegram.group', id: String(msg.chat_id) },
+  };
+  if (msg.sender_id?.user_id) {
+    entities.sender = { type: 'telegram.contact', id: String(msg.sender_id.user_id) };
+  } else if (msg.sender_id?.chat_id) {
+    entities.sender = { type: 'telegram.channel', id: String(msg.sender_id.chat_id) };
+  }
+
+  // Detect member join/leave from service messages
+  if (msg.content?.['@type'] === 'messageChatAddMembers') {
+    const memberIds: number[] =
+      (msg.content as { member_user_ids?: number[] }).member_user_ids ?? [];
+    for (const memberId of memberIds) {
+      hooks.emit({
+        type: 'telegram.chat.member_joined',
+        source: 'telegram',
+        timestamp: Date.now(),
+        entities: {
+          chat: { type: 'telegram.group', id: String(msg.chat_id) },
+          member: { type: 'telegram.contact', id: String(memberId) },
+          ...(msg.sender_id?.user_id
+            ? { added_by: { type: 'telegram.contact', id: String(msg.sender_id.user_id) } }
+            : {}),
+        },
+        data: {
+          chat_id: String(msg.chat_id),
+          member_id: String(memberId),
+          added_by_id: msg.sender_id?.user_id ? String(msg.sender_id.user_id) : null,
+        },
+      });
+    }
+    return;
+  }
+
+  if (msg.content?.['@type'] === 'messageChatDeleteMember') {
+    const userId = (msg.content as { user_id?: number }).user_id;
+    if (userId) {
+      hooks.emit({
+        type: 'telegram.chat.member_left',
+        source: 'telegram',
+        timestamp: Date.now(),
+        entities: {
+          chat: { type: 'telegram.group', id: String(msg.chat_id) },
+          member: { type: 'telegram.contact', id: String(userId) },
+        },
+        data: {
+          chat_id: String(msg.chat_id),
+          member_id: String(userId),
+          removed_by_id: msg.sender_id?.user_id ? String(msg.sender_id.user_id) : null,
+        },
+      });
+    }
+    return;
+  }
+
+  hooks.emit({
+    type: 'telegram.message.received',
+    source: 'telegram',
+    timestamp: Date.now(),
+    entities,
+    data: {
+      text: extractText(msg.content),
+      content_type: msg.content?.['@type'] ?? 'unknown',
+      is_outgoing: Boolean(msg.is_outgoing),
+      chat_id: String(msg.chat_id),
+      message_id: String(msg.id),
+    },
+  });
 }
 
 /**
@@ -146,6 +261,20 @@ function handleUpdateMessageContent(update: TdUpdate): void {
   if (!data.chat_id || !data.message_id || !data.new_content) return;
 
   globalThis.telegramDb.updateMessageContent(data.chat_id, data.message_id, data.new_content);
+
+  // Emit hook event
+  hooks.emit({
+    type: 'telegram.message.edited',
+    source: 'telegram',
+    timestamp: Date.now(),
+    entities: { chat: { type: 'telegram.group', id: String(data.chat_id) } },
+    data: {
+      text: extractText(data.new_content),
+      content_type: data.new_content['@type'] ?? 'unknown',
+      chat_id: String(data.chat_id),
+      message_id: String(data.message_id),
+    },
+  });
 }
 
 /**
@@ -168,6 +297,19 @@ function handleUpdateDeleteMessages(update: TdUpdate): void {
   // Only soft delete if not from cache
   if (!data.from_cache) {
     globalThis.telegramDb.deleteMessages(data.chat_id, data.message_ids);
+
+    // Emit hook event
+    hooks.emit({
+      type: 'telegram.message.deleted',
+      source: 'telegram',
+      timestamp: Date.now(),
+      entities: { chat: { type: 'telegram.group', id: String(data.chat_id) } },
+      data: {
+        chat_id: String(data.chat_id),
+        message_ids: data.message_ids.map(String),
+        is_permanent: Boolean(data.is_permanent),
+      },
+    });
   }
 }
 
@@ -193,6 +335,15 @@ function handleUpdateUserStatus(update: TdUpdate): void {
   if (!data.user_id || !data.status) return;
 
   globalThis.telegramDb.updateUserStatus(data.user_id, data.status);
+
+  // Emit hook event
+  hooks.emit({
+    type: 'telegram.user.status_changed',
+    source: 'telegram',
+    timestamp: Date.now(),
+    entities: { user: { type: 'telegram.contact', id: String(data.user_id) } },
+    data: { user_id: String(data.user_id), status_type: data.status['@type'] },
+  });
 }
 
 // ---------------------------------------------------------------------------

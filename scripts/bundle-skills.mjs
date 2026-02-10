@@ -14,52 +14,37 @@ const rootDir = join(__dirname, '..');
 const skillsOutDir = join(rootDir, 'skills');
 const skillsSrcDir = join(rootDir, 'skills-ts-out');
 
-// Header code that provides CommonJS shim for the entry point
-// This is needed because the bundled modules write to `exports`
+// Header comment for bundled skills.
+// No CommonJS shim needed — with ES module TS output, esbuild IIFE handles
+// exports correctly via __export() and returns the entry module's exports.
 const SKILL_HEADER = `/* Bundled skill with esbuild */
-"use strict";
-// CommonJS shim for entry point
-var exports = {};
-var module = { exports: exports };
 `;
 
-// Footer code that exposes the bundled skill object to globalThis.__skill
-// The V8 runtime will access the skill via globalThis.__skill.default
+// Footer code that exposes the bundled skill object to globalThis.__skill.
+// With ES module input, the IIFE returns __toCommonJS(entry_exports) which
+// contains a .default property holding the skill object.
 const SKILL_FOOTER = `
-// Expose skill bundle to globalThis for V8 runtime access
-// Use module.exports.default if available (CommonJS), otherwise use __skill_bundle
-globalThis.__skill = module.exports.default ? { default: module.exports.default } : __skill_bundle;
-
-// IMPORTANT: Fix for esbuild CommonJS interop issue
-// Tool modules write to global 'exports' object, but the tools array references
-// empty module-specific exports. Rebuild tools array from global exports.
+// Expose skill bundle to globalThis for runtime access.
 (function() {
-  var skill = globalThis.__skill && globalThis.__skill.default;
-  if (!skill || !skill.tools) return;
-
-  // Check if tools array has undefined elements (sign of the CommonJS issue)
-  var hasUndefined = skill.tools.some(function(t) { return t === undefined || t === null; });
-  if (!hasUndefined) return;
-
-  // Collect tools from global exports object (where they actually ended up)
-  var fixedTools = [];
-  for (var key in exports) {
-    if (key.endsWith('Tool') && exports[key] && exports[key].name && exports[key].execute) {
-      fixedTools.push(exports[key]);
-    }
+  var skill = null;
+  if (typeof __skill_bundle === 'object' && __skill_bundle !== null) {
+    skill = __skill_bundle.default || __skill_bundle;
   }
 
-  if (fixedTools.length > 0) {
-    skill.tools = fixedTools;
-    console.log('[skill-fixup] Rebuilt tools array from exports (' + fixedTools.length + ' tools)');
+  // Attach tools: prefer skill.tools, then globalThis.tools (set by bare assignment in IIFE)
+  if (skill && !skill.tools && globalThis.tools) {
+    skill.tools = globalThis.tools;
   }
+
+  console.log('skill', skill);
+  globalThis.__skill = { default: skill };
 })();
 `;
 
 // Find all skills that have a tools directory
 const skills = readdirSync(skillsSrcDir, { withFileTypes: true })
-  .filter(dirent => dirent.isDirectory())
-  .map(dirent => dirent.name);
+  .filter((dirent) => dirent.isDirectory())
+  .map((dirent) => dirent.name);
 
 // Track which skills get bundled (so we skip them in the copy step)
 const bundledSkills = new Set();
@@ -88,14 +73,15 @@ for (const skillName of skills) {
   let hasTools = false;
   let toolCount = 0;
   if (existsSync(toolsDir)) {
-    const toolFiles = readdirSync(toolsDir).filter(file => file.endsWith('.js'));
+    const toolFiles = readdirSync(toolsDir).filter((file) => file.endsWith('.js'));
     toolCount = toolFiles.length;
     hasTools = toolCount > 0;
   }
 
-  // Check if skill has local imports (require('./...') or require("./..."))
+  // Check if skill has local imports (require('./...') or import from './...')
   // These need bundling even without a tools directory
-  const hasLocalImports = /require\(['"]\.\//.test(skillCode);
+  const hasLocalImports =
+    /require\(['"]\.\//.test(skillCode) || /import\s+.*['"]\.\//.test(skillCode);
 
   // Skip if no tools and no local imports
   if (!hasTools && !hasLocalImports) {
@@ -116,7 +102,7 @@ for (const skillName of skills) {
       write: false, // Don't write directly, we need to append footer
       format: 'iife',
       globalName: '__skill_bundle',
-      platform: 'browser',
+      platform: 'neutral',
       target: 'es2020',
       minify: false,
       sourcemap: false,
@@ -162,8 +148,11 @@ for (const skillName of skills) {
 
     let bundledCode = result.outputFiles[0].text;
 
-    // Remove the default esbuild header and add our CommonJS shim header
-    bundledCode = bundledCode.replace(/^\/\* Bundled skill with esbuild \*\/\n"use strict";\n/, '');
+    // Remove the default esbuild banner and optional "use strict"
+    bundledCode = bundledCode.replace(
+      /^\/\* Bundled skill with esbuild \*\/\n(?:"use strict";\n)?/,
+      '',
+    );
     bundledCode = SKILL_HEADER + bundledCode;
 
     // Append footer that exposes skill functions to globalThis
@@ -181,7 +170,7 @@ for (const skillName of skills) {
     bundledSkills.add(skillName);
 
     console.log(
-      `[bundle-skills] Bundled ${skillName} (${(bundledCode.length / 1024).toFixed(1)} KB)`
+      `[bundle-skills] Bundled ${skillName} (${(bundledCode.length / 1024).toFixed(1)} KB)`,
     );
   } catch (error) {
     console.error(`[bundle-skills] Failed to bundle ${skillName}:`, error.message, error);
@@ -194,16 +183,10 @@ for (const skillName of skills) {
   }
 }
 
-// Copy non-bundled skills (no tools dir) from skills-ts-out to skills; wrap with CommonJS shim so V8 sees globalThis.__skill
+// Copy non-bundled skills (no tools dir, no local imports) from skills-ts-out to skills.
+// With ES module TS output these files have `export default skill;` which we
+// convert to a globalThis.__skill assignment for the V8/QuickJS runtime.
 const srcDir = join(rootDir, 'src');
-const COPY_HEADER = `/* Skill (no tools - copied from TS build) */
-"use strict";
-var exports = {};
-var module = { exports: exports };
-`;
-const COPY_FOOTER = `
-globalThis.__skill = module.exports && module.exports.default ? { default: module.exports.default } : (module.exports || {});
-`;
 for (const skillName of skills) {
   // Skip if already bundled
   if (bundledSkills.has(skillName)) continue;
@@ -215,7 +198,15 @@ for (const skillName of skills) {
   if (!existsSync(skillIndexPath)) continue;
   if (!existsSync(skillDirOutput)) mkdirSync(skillDirOutput, { recursive: true });
   let code = readFileSync(skillIndexPath, 'utf-8');
-  code = COPY_HEADER + code + COPY_FOOTER;
+
+  // Convert ES module default export to globalThis assignment
+  code = code.replace(
+    /^export\s+default\s+(\w+)\s*;?\s*$/m,
+    'globalThis.__skill = { default: $1 };',
+  );
+  // Strip any remaining bare export statements (e.g. `export {};`)
+  code = code.replace(/^export\s*\{\s*\}\s*;?\s*$/gm, '');
+
   writeFileSync(skillIndexPathOutput, code);
   const srcManifest = join(srcDir, skillName, 'manifest.json');
   const outManifest = join(skillDirOutput, 'manifest.json');

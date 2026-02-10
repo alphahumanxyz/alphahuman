@@ -17,8 +17,6 @@
     "test:script": "tsx dev/test-harness/runner-node.ts",
     "test:live": "tsx dev/test-harness/live-runner-node.ts",
     "repl": "tsx dev/test-harness/repl-node.ts",
-    "model:download": "node scripts/download-model.mjs",
-    "test:model": "node scripts/test-model.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "validate": "node scripts/validate.mjs",

@@ -1,25 +1,9 @@
 // Tool: notion-list-users
-import type { NotionApi } from '../api/index';
-import type { NotionGlobals } from '../types';
-
-// Resolve from globalThis at runtime (esbuild IIFE breaks module imports)
-const n = (): NotionGlobals => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (g.exports && typeof (g.exports as Record<string, unknown>).notionFetch === 'function') {
-    return g.exports as unknown as NotionGlobals;
-  }
-  return globalThis as unknown as NotionGlobals;
-};
-const getApi = (): NotionApi => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  if (g.exports && typeof (g.exports as Record<string, unknown>).notionApi === 'object') {
-    return (g.exports as Record<string, unknown>).notionApi as NotionApi;
-  }
-  return (g as Record<string, unknown>).notionApi as NotionApi;
-};
+import { notionApi } from '../api/index';
+import { formatApiError, formatUserSummary } from '../helpers';
 
 export const listUsersTool: ToolDefinition = {
-  name: 'notion-list-users',
+  name: 'list-users',
   description: 'List all users in the workspace that the integration can see.',
   input_schema: {
     type: 'object',
@@ -29,16 +13,15 @@ export const listUsersTool: ToolDefinition = {
   },
   execute(args: Record<string, unknown>): string {
     try {
-      const { formatUserSummary } = n();
       const pageSize = Math.min((args.page_size as number) || 20, 100);
 
-      const result = getApi().listUsers(pageSize);
+      const result = notionApi.listUsers(pageSize);
 
       const users = result.results.map((u: Record<string, unknown>) => formatUserSummary(u));
 
       return JSON.stringify({ count: users.length, has_more: result.has_more, users });
     } catch (e) {
-      return JSON.stringify({ error: n().formatApiError(e) });
+      return JSON.stringify({ error: formatApiError(e) });
     }
   },
 };

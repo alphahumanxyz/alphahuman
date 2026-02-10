@@ -1,6 +1,5 @@
-// Shared skill state module for Notion skill
-// Tools and lifecycle functions access state through globalThis.getNotionSkillState()
-// This pattern works in both production V8 runtime and test harness sandbox.
+// Shared skill state module for Notion skill.
+// State is stored on globalThis for the runtime host; use getNotionSkillState() import elsewhere.
 
 export interface NotionSkillConfig {
   credentialId: string;
@@ -85,7 +84,8 @@ globalThis.getNotionSkillState = function getNotionSkillState(): NotionSkillStat
   return s;
 };
 
-// Re-export for TypeScript imports (won't be used at runtime, but satisfies compiler)
 export function getNotionSkillState(): NotionSkillState {
-  return globalThis.getNotionSkillState();
+  const s = globalThis.__notionSkillState;
+  if (!s) throw new Error('[notion] Skill state not initialized');
+  return s;
 }

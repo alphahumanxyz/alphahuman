@@ -391,7 +391,13 @@ function init(): void {
 
   // Initialize client
   initClient().catch(err => {
-    console.error('[telegram] Init client failed:', err);
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    onError({
+      type: 'network',
+      message: errorMsg,
+      source: 'initClient',
+      recoverable: true,
+    });
   });
 
   publishState();
@@ -486,7 +492,13 @@ function onSetupStart(): SetupStartResult {
   // Start client initialization in background
   if (!s.client && !s.clientConnecting) {
     initClient().catch(err => {
-      console.error('[telegram] Init client failed:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'network',
+        message: errorMsg,
+        source: 'initClient',
+        recoverable: true,
+      });
     });
   }
 
@@ -523,7 +535,13 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
 
     // Start client initialization in background
     initClient().catch(err => {
-      console.error('[telegram] Init client failed:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'network',
+        message: errorMsg,
+        source: 'initClient',
+        recoverable: true,
+      });
     });
 
     return {
@@ -597,7 +615,13 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
       if (!s.clientConnecting) {
         // Client not connecting — kick off initialization again
         initClient().catch(err => {
-          console.error('[telegram] Re-init client failed:', err);
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          onError({
+            type: 'network',
+            message: errorMsg,
+            source: 'initClient',
+            recoverable: true,
+          });
         });
       }
       return {
@@ -616,12 +640,16 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
       console.log(`[telegram] Unexpected auth state for phone step: ${s.authState}`);
     }
 
-    // Send phone number (use cleaned format, async - errors will be caught by update handler)
+    // Send phone number (use cleaned format, async - errors handled via onError)
     const cleanPhoneNumber = phoneNumber.replace(/[\s\-()]/g, ''); // Remove formatting characters
     sendPhoneNumber(cleanPhoneNumber).catch(err => {
-      console.error('[telegram] Failed to send phone number:', err);
-      s.clientError = err instanceof Error ? err.message : String(err);
-      publishState();
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'auth',
+        message: errorMsg,
+        source: 'setAuthenticationPhoneNumber',
+        recoverable: true,
+      });
     });
 
     return {
@@ -659,9 +687,13 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
 
     // Submit code (async)
     submitCode(code).catch(err => {
-      console.error('[telegram] Failed to submit code:', err);
-      s.clientError = err instanceof Error ? err.message : String(err);
-      publishState();
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'auth',
+        message: errorMsg,
+        source: 'checkAuthenticationCode',
+        recoverable: true,
+      });
     });
 
     // Check if we need 2FA password
@@ -707,9 +739,13 @@ function onSetupSubmit(args: SetupSubmitArgs): SetupSubmitResult {
 
     // Submit password (async)
     submitPassword(password).catch(err => {
-      console.error('[telegram] Failed to submit password:', err);
-      s.clientError = err instanceof Error ? err.message : String(err);
-      publishState();
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'auth',
+        message: errorMsg,
+        source: 'checkAuthenticationPassword',
+        recoverable: true,
+      });
     });
 
     return { status: 'complete' };
@@ -924,7 +960,13 @@ const telegramSyncTool: ToolDefinition = {
 
     // Trigger sync in background
     triggerInitialSync().catch(err => {
-      console.error('[telegram] Sync trigger failed:', err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      onError({
+        type: 'network',
+        message: errorMsg,
+        source: 'triggerInitialSync',
+        recoverable: true,
+      });
     });
 
     return JSON.stringify({
@@ -954,6 +996,21 @@ function onPing(): PingResult {
   return { ok: true };
 }
 
+function onError(args: SkillErrorArgs): void {
+  const s = globalThis.getTelegramSkillState();
+  console.error(`[telegram] onError: type=${args.type} source=${args.source || 'unknown'} message=${args.message}`);
+
+  s.clientError = args.message;
+
+  // For auth errors during login, reset the pending code flag so the user can retry
+  if (args.type === 'auth' || args.source === 'setAuthenticationPhoneNumber') {
+    s.config.pendingCode = false;
+    state.set('config', s.config);
+  }
+
+  publishState();
+}
+
 const skill: Skill = {
   info: {
     id: 'telegram',
@@ -973,6 +1030,7 @@ const skill: Skill = {
   onSetupSubmit,
   onSetupCancel,
   onPing,
+  onError,
 };
 
 export default skill;

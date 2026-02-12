@@ -1,4 +1,5 @@
 // Tool: google-drive-get-sheet-values (Sheets API)
+import { driveFetch } from '../api';
 import '../state';
 import { SHEETS_BASE } from '../types';
 
@@ -14,35 +15,41 @@ export const getSheetValuesTool: ToolDefinition = {
     },
     required: ['spreadsheet_id', 'range'],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const spreadsheetId = args.spreadsheet_id as string;
       const range = args.range as string;
       if (!spreadsheetId || !range) {
-        return JSON.stringify({ success: false, error: 'spreadsheet_id and range are required' });
+        return Promise.resolve(
+          JSON.stringify({ success: false, error: 'spreadsheet_id and range are required' })
+        );
       }
       const path = `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`;
       const response = driveFetch(path, { baseUrl: SHEETS_BASE });
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to get values',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message || 'Failed to get values',
+          })
+        );
       }
       const data = response.data as { range?: string; values?: unknown[][] };
-      return JSON.stringify({ success: true, range: data.range, values: data.values || [] });
+      return Promise.resolve(
+        JSON.stringify({ success: true, range: data.range, values: data.values ?? [] })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };

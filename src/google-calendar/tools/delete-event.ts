@@ -1,5 +1,10 @@
 // Tool: google-calendar-delete-event
 import '../state';
+import type { CalendarApiFetchResponse } from '../types';
+
+type CalendarDbHelpers = { deleteEvent?: (calendarId: string, eventId: string) => void };
+
+type CalendarFetchFn = (endpoint: string, options?: object) => Promise<CalendarApiFetchResponse>;
 
 export const deleteEventTool: ToolDefinition = {
   name: 'google-calendar-delete-event',
@@ -17,8 +22,8 @@ export const deleteEventTool: ToolDefinition = {
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const calendarFetch = (globalThis as { calendarFetch?: (e: string, o?: object) => any })
-        .calendarFetch;
+      const calendarFetch = (globalThis as { calendarFetch?: CalendarFetchFn }).calendarFetch;
+      const calendarDb = (globalThis as { googleCalendarDb?: CalendarDbHelpers }).googleCalendarDb;
       if (!calendarFetch) {
         return JSON.stringify({ success: false, error: 'Calendar API helper not available' });
       }
@@ -34,13 +39,14 @@ export const deleteEventTool: ToolDefinition = {
         return JSON.stringify({ success: false, error: 'calendar_id and event_id are required' });
       }
       const path = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
-      const response = calendarFetch(path, { method: 'DELETE' });
+      const response = await calendarFetch(path, { method: 'DELETE' });
       if (!response.success) {
         return JSON.stringify({
           success: false,
           error: response.error?.message || 'Failed to delete event',
         });
       }
+      calendarDb?.deleteEvent?.(calendarId, eventId);
       return JSON.stringify({ success: true, deleted: true });
     } catch (e) {
       return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });

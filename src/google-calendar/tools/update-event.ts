@@ -1,5 +1,12 @@
 // Tool: google-calendar-update-event
 import '../state';
+import type { CalendarApiFetchResponse, CalendarEvent } from '../types';
+
+type CalendarFetchFn = (endpoint: string, options?: object) => Promise<CalendarApiFetchResponse>;
+
+type CalendarDbHelpers = {
+  bulkUpsertEvents?: (calendarId: string, events: CalendarEvent[]) => void;
+};
 
 export const updateEventTool: ToolDefinition = {
   name: 'google-calendar-update-event',
@@ -31,8 +38,8 @@ export const updateEventTool: ToolDefinition = {
   },
   async execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const calendarFetch = (globalThis as { calendarFetch?: (e: string, o?: object) => any })
-        .calendarFetch;
+      const calendarFetch = (globalThis as { calendarFetch?: CalendarFetchFn }).calendarFetch;
+      const calendarDb = (globalThis as { googleCalendarDb?: CalendarDbHelpers }).googleCalendarDb;
       if (!calendarFetch) {
         return JSON.stringify({ success: false, error: 'Calendar API helper not available' });
       }
@@ -88,13 +95,14 @@ export const updateEventTool: ToolDefinition = {
         body.attendees = (args.attendees as string[]).map((email: string) => ({ email }));
       }
       const path = `/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
-      const response = calendarFetch(path, { method: 'PATCH', body: JSON.stringify(body) });
+      const response = await calendarFetch(path, { method: 'PATCH', body: JSON.stringify(body) });
       if (!response.success) {
         return JSON.stringify({
           success: false,
           error: response.error?.message || 'Failed to update event',
         });
       }
+      calendarDb?.bulkUpsertEvents?.(calendarId, [response.data as CalendarEvent]);
       return JSON.stringify({ success: true, event: response.data });
     } catch (e) {
       return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });

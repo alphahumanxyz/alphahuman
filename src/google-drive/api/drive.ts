@@ -1,6 +1,6 @@
-// API helper for Google Drive, Sheets, and Docs
+// API helper for Google Drive, Sheets, and Docs (synchronous for QuickJS runtime)
 
-export async function driveFetch(
+export function driveFetch(
   endpoint: string,
   options: {
     method?: string;
@@ -8,23 +8,43 @@ export async function driveFetch(
     headers?: Record<string, string>;
     timeout?: number;
     baseUrl?: string;
+    rawBody?: boolean;
   } = {}
-): Promise<{ success: boolean; data?: unknown; error?: { code: number; message: string } }> {
-  if (!oauth.getCredential()) {
+): { success: boolean; data?: unknown; error?: { code: number; message: string } } {
+  const cred = oauth.getCredential();
+  if (!cred) {
     return {
       success: false,
       error: { code: 401, message: 'Google Drive not connected. Complete OAuth setup first.' },
     };
   }
 
+  const backendUrl = platform.env('BACKEND_URL') || '';
+  if (!backendUrl) {
+    return { success: false, error: { code: 500, message: 'BACKEND_URL not configured' } };
+  }
+
+  const path = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+  const url = backendUrl.replace(/\/$/, '') + '/proxy/by-id/' + cred.credentialId + path;
+
   try {
-    const response = await oauth.fetch(endpoint, {
+    const opts: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+      timeout?: number;
+    } = {
       method: options.method || 'GET',
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-      body: options.body,
       timeout: options.timeout || 30,
-      baseUrl: options.baseUrl,
-    });
+    };
+    if (options.body) opts.body = options.body;
+
+    const response = net.fetch(url, opts) as unknown as {
+      status: number;
+      headers: Record<string, string>;
+      body: string;
+    };
 
     const s = globalThis.getGoogleDriveSkillState();
     if (response.headers['x-ratelimit-remaining']) {
@@ -35,7 +55,11 @@ export async function driveFetch(
     }
 
     if (response.status >= 200 && response.status < 300) {
-      const data = response.body ? JSON.parse(response.body) : null;
+      const data = options.rawBody
+        ? response.body
+        : response.body
+          ? JSON.parse(response.body)
+          : null;
       s.lastApiError = null;
       return { success: true, data };
     }

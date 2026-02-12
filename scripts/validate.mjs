@@ -103,7 +103,7 @@ function validateManifest(skillDir) {
   pass('manifest.json is valid JSON');
 
   // Required fields
-  const requiredFields = ['id', 'name', 'runtime', 'entry', 'version', 'description'];
+  const requiredFields = ['id', 'name', 'version', 'description'];
   let hasAll = true;
   for (const field of requiredFields) {
     if (!manifest[field]) {

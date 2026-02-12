@@ -2,8 +2,20 @@
 // Tools and lifecycle access state via globalThis.getGoogleDriveSkillState()
 import type { SkillConfig } from './types';
 
+export interface GoogleDriveSyncStatus {
+  syncInProgress: boolean;
+  lastSyncTime: number;
+  nextSyncTime: number;
+  totalFiles: number;
+  totalSpreadsheets: number;
+  totalDocuments: number;
+  lastSyncError: string | null;
+  lastSyncDurationMs: number;
+}
+
 export interface GoogleDriveSkillState {
   config: SkillConfig;
+  syncStatus: GoogleDriveSyncStatus;
   activeSessions: string[];
   rateLimitRemaining: number;
   rateLimitReset: number;
@@ -17,7 +29,17 @@ declare global {
 
 function initGoogleDriveSkillState(): GoogleDriveSkillState {
   const state: GoogleDriveSkillState = {
-    config: { credentialId: '', userEmail: '' },
+    config: { credentialId: '', userEmail: '', syncIntervalMinutes: 30 },
+    syncStatus: {
+      syncInProgress: false,
+      lastSyncTime: 0,
+      nextSyncTime: 0,
+      totalFiles: 0,
+      totalSpreadsheets: 0,
+      totalDocuments: 0,
+      lastSyncError: null,
+      lastSyncDurationMs: 0,
+    },
     activeSessions: [],
     rateLimitRemaining: 250,
     rateLimitReset: Date.now() + 3600000,

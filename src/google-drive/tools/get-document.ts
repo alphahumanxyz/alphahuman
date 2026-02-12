@@ -1,4 +1,5 @@
 // Tool: google-drive-get-document (Docs API)
+import { driveFetch } from '../api';
 import '../state';
 import { DOCS_BASE } from '../types';
 
@@ -11,29 +12,31 @@ export const getDocumentTool: ToolDefinition = {
     properties: { document_id: { type: 'string', description: 'Google Doc ID (Drive file ID)' } },
     required: ['document_id'],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const documentId = args.document_id as string;
       if (!documentId) {
-        return JSON.stringify({ success: false, error: 'document_id is required' });
+        return Promise.resolve(
+          JSON.stringify({ success: false, error: 'document_id is required' })
+        );
       }
       const path = `/v1/documents/${encodeURIComponent(documentId)}`;
       const response = driveFetch(path, { baseUrl: DOCS_BASE });
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to get document',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message || 'Failed to get document',
+          })
+        );
       }
       const data = response.data as {
         documentId?: string;
@@ -43,22 +46,26 @@ export const getDocumentTool: ToolDefinition = {
         };
       };
       const parts: string[] = [];
-      (data.body?.content || []).forEach(
+      (data.body?.content ?? []).forEach(
         (c: { paragraph?: { elements?: Array<{ textRun?: { content?: string } }> } }) => {
-          (c.paragraph?.elements || []).forEach((el: { textRun?: { content?: string } }) => {
+          (c.paragraph?.elements ?? []).forEach((el: { textRun?: { content?: string } }) => {
             if (el.textRun?.content) parts.push(el.textRun.content);
           });
         }
       );
       const text = parts.join('').replace(/\n$/, '');
-      return JSON.stringify({
-        success: true,
-        documentId: data.documentId,
-        title: data.title,
-        content: text,
-      });
+      return Promise.resolve(
+        JSON.stringify({
+          success: true,
+          documentId: data.documentId,
+          title: data.title,
+          content: text,
+        })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };

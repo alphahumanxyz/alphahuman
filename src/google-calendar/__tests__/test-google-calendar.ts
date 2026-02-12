@@ -69,20 +69,29 @@ function setupAuthenticatedCalendarTest(overrides?: {
       accountLabel: 'test@example.com',
     },
     oauthFetchResponses: {
-      '/users/me/calendarList': { status: 200, body: JSON.stringify(SAMPLE_CALENDAR_LIST) },
-      '/users/me/calendarList?showHidden=true': {
+      '/calendar/v3/calendars/primary/events/evt1': {
         status: 200,
-        body: JSON.stringify(SAMPLE_CALENDAR_LIST),
+        body: JSON.stringify(SAMPLE_EVENT),
       },
-      '/calendars/primary/events?singleEvents=true&maxResults=50&orderBy=startTime': {
+      '/calendar/v3/calendars/primary/events': {
         status: 200,
-        body: JSON.stringify(SAMPLE_EVENTS),
+        body: JSON.stringify(SAMPLE_CREATED_EVENT),
       },
-      '/calendars/primary/events/evt1': { status: 200, body: JSON.stringify(SAMPLE_EVENT) },
-      '/calendars/primary/events': { status: 200, body: JSON.stringify(SAMPLE_CREATED_EVENT) },
       ...overrides?.oauthFetchResponses,
     },
   });
+  const seed = (): void => {
+    const db = (globalThis as any).googleCalendarDb;
+    db.upsertCalendars(SAMPLE_CALENDAR_LIST.items);
+    db.bulkUpsertEvents('primary', SAMPLE_EVENTS.items as any);
+    db.markCalendarSynced('primary', { lastFullSync: Date.now() });
+  };
+  (globalThis as any).googleCalendarSync = {
+    async performSync() {
+      seed();
+    },
+  };
+  seed();
   (globalThis as any).init();
 }
 
@@ -128,6 +137,22 @@ _describe('Google Calendar Skill', () => {
       _assertEqual(response.success, false);
       _assertContains(response.error, 'not connected');
     });
+
+    _it('should fall back to cached calendars when sync is unavailable', () => {
+      setupAuthenticatedCalendarTest();
+      const originalSync = (globalThis as any).googleCalendarSync;
+      (globalThis as any).googleCalendarSync = {
+        async performSync() {
+          throw new Error('sync failed');
+        },
+      };
+      const result = _callTool('google-calendar-list-calendars');
+      const response = JSON.parse(result);
+      _assertEqual(response.success, true);
+      _assertEqual(response.from_cache, true);
+      _assertEqual(response.calendars.length, 2);
+      (globalThis as any).googleCalendarSync = originalSync;
+    });
   });
 
   _describe('List Events Tool', () => {
@@ -143,18 +168,30 @@ _describe('Google Calendar Skill', () => {
     });
 
     _it('should accept calendar_id and time_min', () => {
-      setupAuthenticatedCalendarTest({
-        oauthFetchResponses: {
-          '/calendars/primary/events?singleEvents=true&timeMin=2025-02-01T00%3A00%3A00Z&maxResults=50&orderBy=startTime':
-            { status: 200, body: JSON.stringify(SAMPLE_EVENTS) },
-        },
-      });
+      setupAuthenticatedCalendarTest();
       const result = _callTool('google-calendar-list-events', {
         calendar_id: 'primary',
         time_min: '2025-02-01T00:00:00Z',
       });
       const response = JSON.parse(result);
       _assertEqual(response.success, true);
+    });
+
+    _it('should return cached events when sync is unavailable', () => {
+      setupAuthenticatedCalendarTest();
+      const originalSync = (globalThis as any).googleCalendarSync;
+      (globalThis as any).googleCalendarSync = {
+        async performSync() {
+          throw new Error('sync failed');
+        },
+      };
+      const result = _callTool('google-calendar-list-events', {});
+      const response = JSON.parse(result);
+      _assertEqual(response.success, true);
+      _assertEqual(response.from_cache, true);
+      _assertEqual(response.events.length, 1);
+      _assertEqual(response.events[0].id, 'evt1');
+      (globalThis as any).googleCalendarSync = originalSync;
     });
   });
 
@@ -218,7 +255,7 @@ _describe('Google Calendar Skill', () => {
     _it('should update event', () => {
       setupAuthenticatedCalendarTest({
         oauthFetchResponses: {
-          '/calendars/primary/events/evt1': {
+          '/calendar/v3/calendars/primary/events/evt1': {
             status: 200,
             body: JSON.stringify({ ...SAMPLE_EVENT, summary: 'Updated standup' }),
           },
@@ -237,7 +274,7 @@ _describe('Google Calendar Skill', () => {
     _it('should default calendar_id to primary', () => {
       setupAuthenticatedCalendarTest({
         oauthFetchResponses: {
-          '/calendars/primary/events/evt1': {
+          '/calendar/v3/calendars/primary/events/evt1': {
             status: 200,
             body: JSON.stringify({ ...SAMPLE_EVENT, summary: 'Updated' }),
           },
@@ -255,7 +292,9 @@ _describe('Google Calendar Skill', () => {
   _describe('Delete Event Tool', () => {
     _it('should delete event', () => {
       setupAuthenticatedCalendarTest({
-        oauthFetchResponses: { '/calendars/primary/events/evt1': { status: 204, body: '' } },
+        oauthFetchResponses: {
+          '/calendar/v3/calendars/primary/events/evt1': { status: 204, body: '' },
+        },
       });
       const result = _callTool('google-calendar-delete-event', {
         calendar_id: 'primary',
@@ -268,7 +307,9 @@ _describe('Google Calendar Skill', () => {
 
     _it('should default calendar_id to primary', () => {
       setupAuthenticatedCalendarTest({
-        oauthFetchResponses: { '/calendars/primary/events/evt1': { status: 204, body: '' } },
+        oauthFetchResponses: {
+          '/calendar/v3/calendars/primary/events/evt1': { status: 204, body: '' },
+        },
       });
       const result = _callTool('google-calendar-delete-event', { event_id: 'evt1' });
       const response = JSON.parse(result);

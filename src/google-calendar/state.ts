@@ -8,6 +8,9 @@ export interface GoogleCalendarSkillState {
   rateLimitRemaining: number;
   rateLimitReset: number;
   lastApiError: string | null;
+  syncInProgress: boolean;
+  lastSyncTime: number | null;
+  lastSyncedCalendars: number;
 }
 
 declare global {
@@ -25,6 +28,9 @@ function initGoogleCalendarSkillState(): GoogleCalendarSkillState {
     rateLimitRemaining: 250,
     rateLimitReset: Date.now() + 3600000,
     lastApiError: null,
+    syncInProgress: false,
+    lastSyncTime: null,
+    lastSyncedCalendars: 0,
   };
 
   globalThis.__googleCalendarSkillState = state;

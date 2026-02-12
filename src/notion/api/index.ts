@@ -81,31 +81,31 @@ export interface NotionApi {
 
 export const notionApi: NotionApi = {
   // pages
-  getPage: getPage,
-  createPage: createPage,
-  updatePage: updatePage,
-  archivePage: archivePage,
-  getPageContent: getPageContent,
+  getPage,
+  createPage,
+  updatePage,
+  archivePage,
+  getPageContent,
   // databases
-  getDatabase: getDatabase,
-  resolveDataSourceId: resolveDataSourceId,
-  getDataSource: getDataSource,
-  queryDataSource: queryDataSource,
-  createDatabase: createDatabase,
-  updateDatabase: updateDatabase,
-  listAllDatabases: listAllDatabases,
+  getDatabase,
+  resolveDataSourceId,
+  getDataSource,
+  queryDataSource,
+  createDatabase,
+  updateDatabase,
+  listAllDatabases,
   // blocks
-  getBlock: getBlock,
-  getBlockChildren: getBlockChildren,
-  appendBlockChildren: appendBlockChildren,
-  updateBlock: updateBlock,
-  deleteBlock: deleteBlock,
+  getBlock,
+  getBlockChildren,
+  appendBlockChildren,
+  updateBlock,
+  deleteBlock,
   // users
-  getUser: getUser,
-  listUsers: listUsers,
+  getUser,
+  listUsers,
   // comments
-  createComment: createComment,
-  listComments: listComments,
+  createComment,
+  listComments,
   // search
-  search: search,
+  search,
 } as NotionApi;

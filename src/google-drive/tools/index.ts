@@ -6,3 +6,5 @@ export { getSheetValuesTool } from './get-sheet-values';
 export { updateSheetValuesTool } from './update-sheet-values';
 export { getDocumentTool } from './get-document';
 export { createDocumentTool } from './create-document';
+export { syncNowTool } from './sync-now';
+export { syncStatusTool } from './sync-status';

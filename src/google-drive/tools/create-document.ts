@@ -1,5 +1,6 @@
 // Tool: google-drive-create-document
 // Creates a new Google Doc via Drive API (files with mimeType application/vnd.google-apps.document)
+import { driveFetch } from '../api';
 import '../state';
 
 export const createDocumentTool: ToolDefinition = {
@@ -14,22 +15,20 @@ export const createDocumentTool: ToolDefinition = {
     },
     required: ['name'],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const name = args.name as string;
       const folderId = args.folder_id as string | undefined;
       if (!name) {
-        return JSON.stringify({ success: false, error: 'name is required' });
+        return Promise.resolve(JSON.stringify({ success: false, error: 'name is required' }));
       }
       const body: Record<string, unknown> = {
         name,
@@ -43,20 +42,26 @@ export const createDocumentTool: ToolDefinition = {
         body: JSON.stringify(body),
       });
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to create document',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message || 'Failed to create document',
+          })
+        );
       }
       const data = response.data as { id?: string; name?: string; webViewLink?: string };
-      return JSON.stringify({
-        success: true,
-        id: data.id,
-        name: data.name,
-        webViewLink: data.webViewLink,
-      });
+      return Promise.resolve(
+        JSON.stringify({
+          success: true,
+          id: data.id,
+          name: data.name,
+          webViewLink: data.webViewLink,
+        })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };

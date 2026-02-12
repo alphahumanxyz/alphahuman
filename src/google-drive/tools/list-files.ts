@@ -1,4 +1,5 @@
 // Tool: google-drive-list-files
+import { driveFetch } from '../api';
 import '../state';
 
 export const listFilesTool: ToolDefinition = {
@@ -31,17 +32,15 @@ export const listFilesTool: ToolDefinition = {
     },
     required: [],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const folderId = (args.folder_id as string) || 'root';
       const pageSize = Math.min(Number(args.page_size) || 50, 1000);
@@ -62,16 +61,18 @@ export const listFilesTool: ToolDefinition = {
       const path = '/drive/v3/files?' + paramParts.join('&');
       const response = driveFetch(path);
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to list files',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message ?? 'Failed to list files',
+          })
+        );
       }
       const data = response.data as {
         files?: Array<Record<string, unknown>>;
         nextPageToken?: string;
       };
-      const files = (data.files || []).map((f: Record<string, unknown>) => ({
+      const files = (data.files ?? []).map((f: Record<string, unknown>) => ({
         id: f.id,
         name: f.name,
         mimeType: f.mimeType,
@@ -80,9 +81,13 @@ export const listFilesTool: ToolDefinition = {
         webViewLink: f.webViewLink,
         parents: f.parents,
       }));
-      return JSON.stringify({ success: true, files, next_page_token: data.nextPageToken || null });
+      return Promise.resolve(
+        JSON.stringify({ success: true, files, next_page_token: data.nextPageToken ?? null })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };

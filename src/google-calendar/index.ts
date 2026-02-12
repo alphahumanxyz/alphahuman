@@ -1,12 +1,16 @@
 // google-calendar/index.ts — Orchestrator
 import './api/calendar';
+import './db/helpers';
+import './db/schema';
 import './state';
+import './sync';
 import {
   createEventTool,
   deleteEventTool,
   getEventTool,
   listCalendarsTool,
   listEventsTool,
+  syncNowTool,
   updateEventTool,
 } from './tools';
 import type { SkillConfig } from './types';
@@ -17,6 +21,9 @@ import type { SkillConfig } from './types';
 
 async function init(): Promise<void> {
   console.log(`[google-calendar] Initializing on ${platform.os()}`);
+  if (typeof globalThis.initializeGoogleCalendarSchema === 'function') {
+    globalThis.initializeGoogleCalendarSchema();
+  }
   const s = globalThis.getGoogleCalendarSkillState();
   const saved = state.get('config') as Partial<SkillConfig> | null;
   if (saved) {
@@ -30,6 +37,18 @@ async function init(): Promise<void> {
 async function start(): Promise<void> {
   console.log('[google-calendar] Starting skill...');
   publishSkillState();
+  try {
+    cron.register('google-calendar-sync', '0 */10 * * * *');
+  } catch (e) {
+    console.warn('[google-calendar] Failed to register sync cron', e);
+  }
+  try {
+    await (
+      globalThis as { googleCalendarSync?: { performSync: () => Promise<void> } }
+    ).googleCalendarSync?.performSync();
+  } catch (err) {
+    console.warn('[google-calendar] Initial sync failed:', err);
+  }
 }
 
 async function stop(): Promise<void> {
@@ -37,6 +56,11 @@ async function stop(): Promise<void> {
   const s = globalThis.getGoogleCalendarSkillState();
   state.set('config', s.config);
   console.log('[google-calendar] Skill stopped');
+  try {
+    cron.unregister('google-calendar-sync');
+  } catch {
+    // ignore
+  }
 }
 
 async function onSessionStart(args: { sessionId: string }): Promise<void> {
@@ -48,6 +72,14 @@ async function onSessionEnd(args: { sessionId: string }): Promise<void> {
   const s = globalThis.getGoogleCalendarSkillState();
   const i = s.activeSessions.indexOf(args.sessionId);
   if (i > -1) s.activeSessions.splice(i, 1);
+}
+
+async function onCronTrigger(scheduleId: string): Promise<void> {
+  if (scheduleId === 'google-calendar-sync') {
+    await (
+      globalThis as { googleCalendarSync?: { performSync: () => Promise<void> } }
+    ).googleCalendarSync?.performSync();
+  }
 }
 
 async function onOAuthComplete(args: OAuthCompleteArgs): Promise<void> {
@@ -91,6 +123,9 @@ function publishSkillState(): void {
     activeSessions: s.activeSessions.length,
     rateLimitRemaining: s.rateLimitRemaining,
     lastError: s.lastApiError,
+    sync_in_progress: s.syncInProgress,
+    last_sync_time: s.lastSyncTime,
+    last_synced_calendars: s.lastSyncedCalendars,
   });
 }
 
@@ -100,6 +135,7 @@ function publishSkillState(): void {
 
 const _g = globalThis as Record<string, unknown>;
 _g.calendarFetch = globalThis.googleCalendarApi.calendarFetch;
+_g.publishGoogleCalendarState = publishSkillState;
 
 // ---------------------------------------------------------------------------
 // Skill export
@@ -112,6 +148,7 @@ const tools: ToolDefinition[] = [
   createEventTool,
   updateEventTool,
   deleteEventTool,
+  syncNowTool,
 ];
 
 const skill: Skill = {
@@ -132,6 +169,7 @@ const skill: Skill = {
   onOAuthComplete,
   onOAuthRevoked,
   onDisconnect,
+  onCronTrigger,
 };
 
 export default skill;

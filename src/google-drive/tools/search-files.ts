@@ -1,4 +1,5 @@
 // Tool: google-drive-search-files
+import { driveFetch } from '../api';
 import '../state';
 
 export const searchFilesTool: ToolDefinition = {
@@ -23,24 +24,24 @@ export const searchFilesTool: ToolDefinition = {
     },
     required: ['query'],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const query = typeof args.query === 'string' ? args.query.trim() : '';
       if (!query) {
-        return JSON.stringify({
-          success: false,
-          error: 'query is required and must be a non-empty string',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'query is required and must be a non-empty string',
+          })
+        );
       }
       const parsedPageSize = Number(args.page_size);
       const pageSize = Math.max(
@@ -59,16 +60,18 @@ export const searchFilesTool: ToolDefinition = {
       const path = '/drive/v3/files?' + paramParts.join('&');
       const response = driveFetch(path);
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to search files',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message ?? 'Failed to search files',
+          })
+        );
       }
       const data = response.data as {
         files?: Array<Record<string, unknown>>;
         nextPageToken?: string;
       };
-      const files = (data.files || []).map((f: Record<string, unknown>) => ({
+      const files = (data.files ?? []).map((f: Record<string, unknown>) => ({
         id: f.id,
         name: f.name,
         mimeType: f.mimeType,
@@ -77,9 +80,13 @@ export const searchFilesTool: ToolDefinition = {
         webViewLink: f.webViewLink,
         parents: f.parents,
       }));
-      return JSON.stringify({ success: true, files, next_page_token: data.nextPageToken || null });
+      return Promise.resolve(
+        JSON.stringify({ success: true, files, next_page_token: data.nextPageToken ?? null })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };

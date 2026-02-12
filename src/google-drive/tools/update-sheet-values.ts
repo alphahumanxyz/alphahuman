@@ -1,4 +1,5 @@
 // Tool: google-drive-update-sheet-values (Sheets API)
+import { driveFetch } from '../api';
 import '../state';
 import { SHEETS_BASE } from '../types';
 
@@ -23,17 +24,15 @@ export const updateSheetValuesTool: ToolDefinition = {
     },
     required: ['spreadsheet_id', 'range', 'values'],
   },
-  async execute(args: Record<string, unknown>): Promise<string> {
+  execute(args: Record<string, unknown>): Promise<string> {
     try {
-      const driveFetch = (globalThis as { driveFetch?: (e: string, o?: object) => any }).driveFetch;
-      if (!driveFetch) {
-        return JSON.stringify({ success: false, error: 'Drive API helper not available' });
-      }
       if (!oauth.getCredential()) {
-        return JSON.stringify({
-          success: false,
-          error: 'Google Drive not connected. Complete OAuth setup first.',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: 'Google Drive not connected. Complete OAuth setup first.',
+          })
+        );
       }
       const spreadsheetId = args.spreadsheet_id as string;
       const range = args.range as string;
@@ -41,11 +40,13 @@ export const updateSheetValuesTool: ToolDefinition = {
       const valueInputOption = (args.value_input_option as string) || 'USER_ENTERED';
       const is2DArray = Array.isArray(values) && values.every((row: unknown) => Array.isArray(row));
       if (!spreadsheetId || !range || !is2DArray) {
-        return JSON.stringify({
-          success: false,
-          error:
-            'spreadsheet_id, range, and values (2D array) are required; values must be a 2D array',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error:
+              'spreadsheet_id, range, and values (2D array) are required; values must be a 2D array',
+          })
+        );
       }
       const path = `/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?valueInputOption=${valueInputOption}`;
       const response = driveFetch(path, {
@@ -54,19 +55,25 @@ export const updateSheetValuesTool: ToolDefinition = {
         baseUrl: SHEETS_BASE,
       });
       if (!response.success) {
-        return JSON.stringify({
-          success: false,
-          error: response.error?.message || 'Failed to update values',
-        });
+        return Promise.resolve(
+          JSON.stringify({
+            success: false,
+            error: response.error?.message || 'Failed to update values',
+          })
+        );
       }
       const data = response.data as { updatedCells?: number; updatedRows?: number };
-      return JSON.stringify({
-        success: true,
-        updatedCells: data.updatedCells,
-        updatedRows: data.updatedRows,
-      });
+      return Promise.resolve(
+        JSON.stringify({
+          success: true,
+          updatedCells: data.updatedCells,
+          updatedRows: data.updatedRows,
+        })
+      );
     } catch (e) {
-      return JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) });
+      return Promise.resolve(
+        JSON.stringify({ success: false, error: e instanceof Error ? e.message : String(e) })
+      );
     }
   },
 };
